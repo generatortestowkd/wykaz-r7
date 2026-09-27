@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wykaz pojazdów kolejowych w składzie pociągu</title>
+<meta name="description" content="Pomocnicza aplikacja do wypełniania dokumentu R-7 (wykaz pojazdów kolejowych w składzie pociągu) i generowania PDF. Autor: Grzegorz Rejszel.">
+<meta name="theme-color" content="#0E5A6B">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Arimo:ital,wght@0,400;0,700;1,400&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="/vendor/html2canvas-1.4.1.min.js"></script>
+<script src="/vendor/jspdf-2.5.1.umd.min.js"></script>
+<style>
+:root{
+  --bg:#E6EAEE; --panel:#FFFFFF; --ink:#16202B; --muted:#5A6774; --line:#CBD3DB;
+  --field:#F6F8FA; --accent:#0E5A6B; --accent-ink:#FFFFFF; --accent-soft:#DCEBEE;
+  --danger:#A3282B; --ok:#1F7A3A; --desk:#C9D0D7;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11171D; --panel:#1A232C; --ink:#E4E9EE; --muted:#93A1AE; --line:#2E3A46;
+    --field:#141C23; --accent:#4FB3C7; --accent-ink:#0B1A1F; --accent-soft:#1E3940;
+    --danger:#E3787A; --ok:#6BCB8B; --desk:#0C1115;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11171D; --panel:#1A232C; --ink:#E4E9EE; --muted:#93A1AE; --line:#2E3A46;
+  --field:#141C23; --accent:#4FB3C7; --accent-ink:#0B1A1F; --accent-soft:#1E3940;
+  --danger:#E3787A; --ok:#6BCB8B; --desk:#0C1115;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow',system-ui,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.4}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--panel);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;padding:10px 18px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:4px 10px;margin-right:auto;min-width:0;flex-wrap:wrap}
+.brand .author{font-size:13px;color:var(--muted);white-space:nowrap;padding-left:10px;border-left:1px solid var(--line)}
+.brand h1{font-size:19px;font-weight:700;margin:0;white-space:nowrap}
+.brand .tag{font-size:13px;color:var(--muted);white-space:nowrap}
+.btn{border:1px solid var(--line);background:var(--panel);padding:7px 13px;border-radius:6px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600;padding:8px 18px}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.primary[disabled]{opacity:.6;cursor:progress}
+.btn.small{padding:3px 9px;font-size:13px}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--ink);border-color:var(--line)}
+
+.wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;padding:18px;align-items:start}
+@media (max-width:1150px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 10px;overflow-x:auto}
+.tab{border:none;background:none;padding:12px 13px 10px;cursor:pointer;color:var(--muted);font-weight:600;border-bottom:3px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabpane{padding:18px}
+.tabpane[hidden]{display:none}
+
+fieldset{border:none;margin:0 0 20px;padding:0}
+legend{font-weight:700;font-size:15px;padding:0;margin-bottom:8px;display:flex;align-items:center;gap:10px;width:100%}
+legend .btn{margin-left:auto;font-weight:500}
+legend .btn + .btn{margin-left:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px 12px}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted);font-weight:500}
+label.f.wide{grid-column:1/-1}
+label.chk{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.inp{background:var(--field);border:1px solid var(--line);border-radius:5px;padding:7px 9px;color:var(--ink);width:100%;min-width:0}
+.inp:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
+.inp:disabled{opacity:.55}
+select.inp{appearance:auto;cursor:pointer}
+.rodz-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px;align-items:end}
+.rodz-row ~ .rodz-row{margin-top:12px}
+.vtag{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.vtag.g1,table.ed tr.g1 td.lp{--gc:var(--accent)}
+.vtag.g2,table.ed tr.g2 td.lp{--gc:#C9821B}
+.vtag{background:var(--gc)}
+table.ed tr.g1 td.lp,table.ed tr.g2 td.lp{box-shadow:inset 4px 0 0 var(--gc)}
+.cab{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.cab button{border:none;background:var(--field);padding:7px 12px;cursor:pointer;font-weight:500;white-space:nowrap}
+.cab button + button{border-left:1px solid var(--line)}
+.cab button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.fillinfo{font-size:13px;margin-top:8px;color:var(--ink);background:var(--accent-soft);border-radius:6px;padding:7px 10px}
+.fillinfo:empty{display:none}
+.errbox{font-size:13px;margin-top:8px;color:var(--danger);border:1px solid var(--danger);border-radius:6px;padding:7px 10px;font-weight:500}
+.errbox:empty{display:none}
+.swapgrid{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:6px 10px;align-items:center;margin:10px 0;padding:10px 12px;border:1px dashed var(--line);border-radius:8px}
+.vcell[hidden],.swapgrid[hidden]{display:none}
+/* "S" run in red */
+.cab button[data-mode="S"]{color:var(--danger);font-weight:600}
+.cab button[data-mode="S"][aria-pressed="true"]{background:var(--danger);color:#fff}
+/* disclaimer */
+.warn{display:flex;gap:10px;align-items:flex-start;margin:18px 18px 0;padding:11px 14px;border:1px solid #F1C2C2;background:#FDF1F1;color:#B42318;border-radius:8px;font-size:14px;line-height:1.45}
+.warn svg{flex:none;margin-top:2px}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .warn{background:#2A1719;border-color:#5C2A2E;color:#F2A7A7}}
+:root[data-theme="dark"] .warn{background:#2A1719;border-color:#5C2A2E;color:#F2A7A7}
+/* padlock + admin dialog */
+.lockbtn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0}
+.lockbtn svg{display:block}
+dialog.adm{border:1px solid var(--line);border-radius:12px;padding:0;background:var(--panel);color:var(--ink);width:min(1100px,96vw);max-height:92vh}
+dialog.adm::backdrop{background:rgba(10,16,22,.55)}
+dialog.pw{width:min(380px,92vw)}
+.adm-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+.adm-head h2{margin:0;font-size:18px;margin-right:auto}
+.adm-body{padding:16px 18px;overflow:auto}
+.adm-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.adm-tools .inp{max-width:240px}
+.adm-sec{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.adm-sec h3{margin:0 0 8px;font-size:15px}
+table.at{border-collapse:collapse;width:100%;font-size:13.5px}
+table.at th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+table.at td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.at td.n{text-align:right;font-variant-numeric:tabular-nums}
+table.at tr.edit td{background:var(--accent-soft)}
+.at-wrap{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:6px}
+.vform{border:1px solid var(--accent);border-radius:8px;padding:14px;margin-bottom:14px}
+.vform h3{margin:0 0 10px;font-size:15px}
+.vform textarea{font-family:ui-monospace,Consolas,monospace;min-height:92px;resize:vertical}
+.vform .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.vform .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.pwerr{color:var(--danger);font-size:13px;min-height:18px;margin-top:6px}
+.swapgrid .h{font-size:12px;color:var(--muted);font-weight:600}
+.swapgrid .vl{font-size:13px;font-weight:600;white-space:nowrap}
+@media (max-width:600px){.swapgrid{grid-template-columns:1fr}}
+table.ed input.err{border-color:var(--danger);background:color-mix(in srgb, var(--danger) 10%, transparent)}
+.vcell{display:flex;flex-direction:column;gap:6px;min-width:0}
+.cab.sm button{padding:4px 10px;font-size:13px}
+.vcell .cab{align-self:flex-start}
+.btn.clear{display:inline-flex;align-items:center;gap:6px;color:var(--danger);border-color:color-mix(in srgb, var(--danger) 45%, var(--line))}
+.btn.clear:hover{border-color:var(--danger);background:color-mix(in srgb, var(--danger) 8%, transparent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.cab button:disabled{opacity:.45;cursor:not-allowed}
+.optlbl{font-size:13px;color:var(--muted);font-weight:500}
+legend label.chk{margin-left:auto;font-weight:500;font-size:13px}
+legend label.chk + .btn{margin-left:0}
+fieldset.off .grid{opacity:.5}
+@media (max-width:600px){.rodz-row{grid-template-columns:1fr}}
+.listinfo{font-size:13px;color:var(--muted);margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hint{font-size:13px;color:var(--muted);margin:0 0 14px;max-width:75ch}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.seg button{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.seg button .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-left:6px;vertical-align:middle;opacity:.8}
+
+.vt-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table.ed{border-collapse:separate;border-spacing:0;min-width:1520px;width:100%;font-size:13px}
+table.ed th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;color:var(--muted);padding:6px 5px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:12px}
+table.ed td{padding:2px 3px;border-bottom:1px solid var(--line);background:var(--panel)}
+table.ed td.lp,table.ed th.lp{position:sticky;left:0;z-index:2;width:52px;font-weight:700;color:var(--ink);text-align:center;border-right:1px solid var(--line)}
+table.ed th.lp{z-index:3}
+table.ed tr.sec td{background:var(--accent-soft);font-weight:700;padding:6px 10px;color:var(--ink)}
+table.ed tr.sec td .lp-sticky{position:sticky;left:10px}
+table.ed input{width:100%;border:1px solid transparent;background:transparent;padding:5px 5px;border-radius:4px;min-width:0}
+table.ed input:hover{border-color:var(--line)}
+table.ed input:focus{border-color:var(--accent);background:var(--field);outline:none}
+table.ed input.n{text-align:right}
+table.ed td.act{white-space:nowrap;text-align:right;width:1%}
+.nrcell{display:flex;align-items:center;gap:2px}
+.evn{flex:none;font-size:12px;font-weight:700;min-width:30px;text-align:center;border:none;background:none;padding:2px 4px;border-radius:4px}
+.evn.ok{color:var(--ok)}
+.evn.bad{color:var(--danger)}
+.evn.add{color:var(--accent);cursor:pointer;border:1px dashed var(--accent)}
+.ib{border:none;background:none;cursor:pointer;color:var(--muted);padding:3px 6px;border-radius:4px;font-size:14px;line-height:1}
+.ib:hover{background:var(--field);color:var(--ink)}
+.ib.del:hover{color:var(--danger)}
+.addrow{margin:10px 0 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+
+.hcard{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px}
+.hcard h3{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:10px}
+.hcard h3 .prevtxt{font-weight:400;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.hcard h3 .ib{margin-left:auto}
+.hcard .grid + .grid{margin-top:10px}
+
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:0 0 14px}
+.sum div{background:var(--panel);padding:8px 12px}
+.sum dt{font-size:12px;color:var(--muted)}
+.sum dd{margin:0;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+
+.pv{position:sticky;top:76px;padding:0;overflow:hidden}
+@media (max-width:1150px){.pv{position:static}}
+.pv-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600}
+.pv-head span{font-weight:400;color:var(--muted);font-size:13px}
+.desk{background:var(--desk);padding:14px;max-height:calc(100vh - 150px);overflow:auto}
+@media (max-width:1150px){.desk{max-height:none}}
+.scaler{transform-origin:0 0}
+.scaler .sheet{box-shadow:0 1px 3px rgba(0,0,0,.25);margin-bottom:6mm}
+.scaler.params .sheet{height:auto;padding-top:5mm;padding-bottom:5mm}
+.scaler.params .sheet .title,.scaler.params .sheet .hb,.scaler.params .sheet .foot{display:none}
+.scaler.params .sheet .vt{margin-top:0}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90vw}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+
+/* ---------- printed sheet ---------- */
+.sheet{width:297mm;height:210mm;background:#fff;color:#000;padding:8mm 10mm;position:relative;overflow:hidden;
+  font-family:'Arimo',Arial,'Liberation Sans',sans-serif;box-sizing:border-box}
+.sheet *{box-sizing:border-box}
+.sheet .title{height:7mm;text-align:center;font-weight:700;font-size:10.5pt;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:4mm}
+.sheet .title small{font-weight:400;font-size:7.5pt;letter-spacing:0}
+/* separate borders (right+bottom per cell) so html2canvas draws every line once, like the preview */
+.sheet table{border-collapse:separate;border-spacing:0;table-layout:fixed;width:277mm;border:.6mm solid #000}
+.sheet tr.thk > td,.sheet tr.thk > th{border-top:.4mm solid #000}
+.sheet .vt tbody tr:first-child > td{border-top:.4mm solid #000}
+.sheet td,.sheet th{border:none;border-right:.25mm solid #000;border-bottom:.25mm solid #000;padding:0 1mm;overflow:hidden;vertical-align:middle}
+.sheet .hb{margin-top:1.5mm}
+.sheet .hb tr{height:4.5mm}
+.sheet .hb tr.h0{height:4mm}
+.sheet .hb td{font-size:6.8pt;white-space:nowrap}
+.sheet .hb td.c{text-align:center}
+.sheet .hb tr.nums td{text-align:center;font-size:6.5pt}
+.sheet .hb td.lb{text-align:center;font-size:7pt}
+.sheet .hb td.val{font-size:8pt;text-align:center}
+.sheet .hb td.rodz{vertical-align:middle;text-align:center;font-size:8.5pt;white-space:normal;padding:.6mm 1.5mm;line-height:1.25;word-break:break-word}
+.sheet .vt{margin-top:2.5mm}
+.sheet .vt th{font-weight:400;font-size:5.4pt;line-height:1.15;text-align:center;padding:0 .5mm;white-space:normal}
+.sheet .vt thead tr.r1{height:4.5mm}
+.sheet .vt thead tr.r2{height:4.5mm}
+.sheet .vt thead tr.r3{height:9mm}
+.sheet .vt thead tr.nums{height:3.5mm}
+.sheet .vt thead tr.nums td{font-size:6pt;text-align:center;padding:0}
+.sheet .vt tbody tr{height:4.5mm}
+.sheet .vt tbody td{font-size:7.2pt;white-space:nowrap;text-overflow:clip;text-align:center}
+.sheet .vt tbody td.lp{text-align:left;font-size:6.8pt;padding-left:1.2mm}
+.sheet .vt tbody td.cn{text-align:center}
+.sheet .vt tbody td.nr{text-align:center}
+.sheet .vt tbody td.uw{font-size:6pt}
+.sheet .vt tbody td.brc{position:relative;overflow:visible}
+.sheet .brace{position:absolute;left:.3mm;top:.6mm;width:2.2mm;z-index:1}
+.sheet .brace svg{display:block;width:100%;height:100%}
+.sheet .hb td.zc{position:relative;overflow:visible}
+.sheet .zmark{position:absolute;left:2mm;right:2mm;top:1.5mm;height:14.8mm;z-index:1}
+.sheet .zmark svg{display:block;width:100%;height:100%}
+.sheet .vt tbody td.bxc{padding:0}
+.sheet .bx{display:flex;height:4.25mm;align-items:stretch}
+.sheet .bx span{flex:1 1 0;border-right:.15mm solid #000;text-align:center;font-size:7.4pt;line-height:4.25mm}
+.sheet .bx span:last-child{border-right:none}
+.sheet .bx span.dash{flex:.6 1 0}
+.sheet .vt tbody td.htx{font-size:7.2pt;text-align:left;padding-left:1.5mm}
+.sheet .vt tbody tr.first-w > td,.sheet .vt tbody tr.first-h > td{border-top:.4mm solid #000}
+.sheet .foot{position:absolute;left:10mm;right:10mm;bottom:6mm;font-size:6pt;line-height:1.35}
+.sheet .foot .zal{font-style:italic;font-size:5.8pt}
+.sheet .foot .pg{position:absolute;right:0;bottom:0;font-size:6.5pt}
+.sheet .foot .gen{position:absolute;right:0;top:0;font-size:5.5pt;color:#444}
+.credit{text-align:center;font-size:13px;color:var(--muted);padding:4px 18px calc(22px + env(safe-area-inset-bottom,0px))}
+
+.offscreen{position:fixed;left:-30000px;top:0;pointer-events:none}
+
+.ts{display:none}
+.pv-head{gap:10px}
+.pv-head > span:first-child{font-weight:600;color:var(--ink);font-size:15px}
+.pv-head #pgInfo{margin-left:auto}
+.zoom{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:6px;font-weight:500;font-size:13px}
+.zoom .ib{font-size:16px;padding:4px 9px}
+.zoom #zoomVal{min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+.mbar{display:none}
+table.ed .mexp{display:none}
+
+/* ================= phone layout ================= */
+@media (max-width:700px){
+  body{font-size:15px}
+  .bar{padding:8px 12px;gap:8px;flex-wrap:nowrap}
+  .brand{flex-direction:column;align-items:flex-start;gap:0}
+  .brand h1{font-size:16px;white-space:normal;line-height:1.2}
+  .brand .tag{display:none}
+  .brand .author{border-left:none;padding-left:0;font-size:11.5px;white-space:normal}
+  .tl{display:none} .ts{display:inline}
+  .btn.clear{padding:6px 10px}
+  #btnPdf{display:none}
+  .warn{margin:10px 10px 0;padding:8px 10px;font-size:12.5px;gap:8px}
+  .wrap{padding:10px;gap:12px}
+  .tabpane{padding:14px 12px}
+  .tab{padding:11px 11px 9px;font-size:14.5px}
+  .inp, table.ed input, select.inp{font-size:16px}  /* prevents iOS zoom on focus */
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  legend{flex-wrap:wrap;row-gap:6px}
+  legend label.chk{margin-left:0;order:3;width:100%}
+  legend .btn{margin-left:auto}
+  .cab{display:flex;width:100%}
+  .cab button{flex:1 1 0;padding:9px 6px;font-size:14px}
+  .cab.sm button{padding:7px 6px}
+  .vcell .cab{align-self:stretch}
+  .addrow .btn{flex:1 1 auto}
+  .hint{font-size:12.5px}
+  .sum dd{font-size:16px}
+  .ib{padding:7px 9px;font-size:16px}
+  .hcard{padding:10px}
+  .hcard .grid label.f[style*="span 2"]{grid-column:1/-1 !important}
+  .pv{top:auto}
+  .pv-head{flex-wrap:wrap;padding:8px 12px}
+  .pv-head #pgInfo{display:none}
+  .pv-head .zoom{margin-left:auto}
+  .tabpane > p.hint:not(.open){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+  .tabpane > p.hint:not(.open)::before{content:'ⓘ ';font-weight:700}
+  .desk{padding:8px}
+  dialog.adm{width:100vw;max-width:100vw;max-height:100dvh;height:auto;margin:auto 0 0;border-radius:12px 12px 0 0}
+  /* bottom action bar */
+  .mbar{display:flex;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px))}
+  .mbar .btn{flex:1 1 0;padding:10px 6px}
+  .mbar .btn.primary{flex:1.3 1 0}
+  body{padding-bottom:64px}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+
+  /* vehicle table as cards */
+  .vt-wrap{overflow:visible;border:none}
+  table.ed{min-width:0;display:block}
+  table.ed colgroup, table.ed thead{display:none}
+  table.ed tbody{display:block}
+  table.ed tr.sec{display:block}
+  table.ed tr.sec td{display:block;border-radius:6px;margin-top:10px}
+  table.ed tr[data-sec]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;padding:10px 12px 12px;margin-top:8px;
+    border:1px solid var(--line);border-radius:8px;position:relative;background:var(--panel)}
+  table.ed tr.g1,table.ed tr.g2{box-shadow:inset 4px 0 0 var(--gc)}
+  table.ed tr.g1{--gc:var(--accent)} table.ed tr.g2{--gc:#C9821B}
+  table.ed td{display:block;padding:0;border:none;background:none;min-width:0}
+  table.ed td.lp{position:static;grid-column:1/-1;text-align:left;border:none;font-size:15px;box-shadow:none !important;width:auto;padding-right:120px}
+  table.ed td[data-label]::before{content:attr(data-label);display:block;font-size:11.5px;color:var(--muted);margin-bottom:2px}
+  table.ed td.wide{grid-column:1/-1}
+  table.ed input{border:1px solid var(--line);background:var(--field);padding:7px 8px}
+  table.ed input.n{text-align:left}
+  table.ed td.act{position:absolute;top:4px;right:6px;width:auto}
+  table.ed .mexp{display:inline-block;font-size:13px}
+  table.ed tr.collapsed td:not(.lp):not(.wide-nr):not(.act){display:none}
+  table.ed tr.collapsed .ib:not(.mexp){display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <h1>Wykaz pojazdów w składzie pociągu</h1>
+    <span class="tag">formularz R-7</span>
+    <span class="author">Autor: Grzegorz Rejszel (kier. poc. 186)</span>
+  </div>
+  <button class="btn clear" id="btnNew" type="button">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+    <span class="tl">Wyczyść dokument</span><span class="ts">Wyczyść</span></button>
+  <button class="btn ghost lockbtn" id="btnAdm" type="button" title="Panel administratora" aria-label="Panel administratora">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
+  <button class="btn primary" id="btnPdf" type="button">Pobierz PDF</button>
+</header>
+
+<div class="warn" role="note">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+  <span>Aplikacja ma charakter wyłącznie pomocniczy i ułatwia wypełnienie dokumentu R-7 (erki). Korzystasz z niej na własną odpowiedzialność — nie zwalnia ona obsługi pociągu z obowiązku sprawdzenia, czy wyliczone wartości są prawidłowe.</span>
+</div>
+<main class="wrap">
+  <section class="panel" aria-label="Edycja danych">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-tab="t1" type="button"><span class="tl">Pociąg i drużyna</span><span class="ts">Pociąg</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="t2" type="button">Pojazdy</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="t3" type="button"><span class="tl">Próby hamulca (H)</span><span class="ts">Próby H</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="t4" type="button"><span class="tl">Stacje pośrednie i końcowa</span><span class="ts">Rubryki 2–6</span></button>
+    </div>
+
+    <!-- TAB 1 -->
+    <div class="tabpane" id="t1" role="tabpanel">
+      <fieldset>
+        <legend>Pojazd (lewy górny róg formularza)</legend>
+        <div class="rodz-row">
+          <div class="vcell">
+            <label class="f"><span><span class="vtag g1"></span>Pojazd 1</span>
+              <select class="inp" id="rodzPoj"></select></label>
+            <div class="cab sm" role="group" aria-label="Kierunek jazdy pojazdu 1">
+              <button type="button" data-veh="1" data-cab="1" aria-pressed="true">Kabina 1</button>
+              <button type="button" data-veh="1" data-cab="2" aria-pressed="false">Kabina 2</button></div>
+          </div>
+          <div class="vcell" id="v2Ask">
+            <span class="optlbl">Drugi pojazd (opcjonalnie)</span>
+            <div class="addrow" style="margin:0">
+              <button class="btn small" type="button" data-pojmode="plus">Drugi pojazd (połączone jednostki)</button>
+              <button class="btn small" type="button" data-pojmode="swap">Wymiana pojazdu</button></div>
+          </div>
+          <div class="vcell" id="v2Box" hidden>
+            <label class="f"><span><span class="vtag g2"></span><span id="v2Lbl">Pojazd 2</span></span>
+              <select class="inp" id="rodzPoj2"></select></label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <div class="cab sm" role="group" aria-label="Kierunek jazdy pojazdu 2">
+                <button type="button" data-veh="2" data-cab="1" aria-pressed="true">Kabina 1</button>
+                <button type="button" data-veh="2" data-cab="2" aria-pressed="false">Kabina 2</button></div>
+              <button class="btn small ghost" type="button" id="btnV2Off">Usuń drugi pojazd</button></div>
+            <div class="swapgrid" id="stWymBox" hidden role="group" aria-label="Stacje przy wymianie pojazdu">
+              <span></span><span class="h">Rubryka 11 – stacja nadania</span><span class="h">Rubryka 12 – stacja przeznaczenia</span>
+              <span class="vl"><span class="vtag g1"></span>Pojazd 1</span>
+              <input class="inp" id="sw1n" list="dlStacje" autocomplete="off" aria-label="Pojazd 1 – stacja nadania">
+              <input class="inp" id="sw1p" list="dlStacje" autocomplete="off" aria-label="Pojazd 1 – stacja przeznaczenia (stacja wymiany)">
+              <span class="vl"><span class="vtag g2"></span>Pojazd 2</span>
+              <input class="inp" id="sw2n" list="dlStacje" autocomplete="off" aria-label="Pojazd 2 – stacja nadania (stacja wymiany)">
+              <input class="inp" id="sw2p" list="dlStacje" autocomplete="off" aria-label="Pojazd 2 – stacja przeznaczenia">
+            </div>
+          </div>
+        </div>
+        <div class="rodz-row">
+          <div class="vcell"><span class="optlbl" id="modeLbl">Rodzaj przejazdu</span>
+            <div class="cab" role="group" aria-labelledby="modeLbl">
+              <button type="button" data-mode="P" aria-pressed="true">Z pasażerami</button>
+              <button type="button" data-mode="S" aria-pressed="false">„S” – przejazd esem</button></div></div>
+          <div class="vcell"><span class="optlbl" id="pvLbl">Podgląd</span>
+            <div class="cab" role="group" aria-labelledby="pvLbl">
+              <button type="button" data-pv="all" aria-pressed="true">Cały dokument</button>
+              <button type="button" data-pv="params" aria-pressed="false">Tylko parametry pojazdu</button></div></div>
+        </div>
+        <div class="rodz-row">
+          <label class="f">Dopisek (opcjonalnie)
+            <input class="inp" id="rodzDop" placeholder="np. + wagon rowerowy" list="dlDop" autocomplete="off"></label>
+        </div>
+        <div class="fillinfo" id="fillInfo"></div>
+        <div class="errbox" id="swapErr1" role="alert"></div>
+      </fieldset>
+      <p class="hint">Dane poniżej trafiają do rubryki 1 – stacji początkowej. Rubryki 2–6 wypełniasz w zakładce „Stacje pośrednie i końcowa”, tylko gdy dane zmieniają się w trakcie jazdy (np. zmiana drużyny).</p>
+      <fieldset>
+        <legend>Pociąg</legend>
+        <div class="grid">
+          <label class="f">Numer pociągu<input class="inp" data-h="nrPociagu" autocomplete="off"></label>
+          <label class="f">Wyprawionego dnia<input class="inp" type="date" data-h="data"></label>
+          <label class="f">Ze stacji<input class="inp" data-h="zeStacji" list="dlStacje"></label>
+          <label class="f">Do stacji<input class="inp" data-h="doStacji" list="dlStacje"></label>
+        </div>
+      </fieldset>
+      <fieldset id="fsKier">
+        <legend>Kierownik pociągu <label class="chk"><input type="checkbox" id="brakKier"> Brak kierownika w rubryce 1 (wykreślenie „Z”)</label>
+          <button class="btn small" type="button" data-copyroute="k">Trasa jak pociąg</button></legend>
+        <div class="grid">
+          <label class="f">Imię i nazwisko<input class="inp" data-h="kierownik" list="dlOsoby"></label>
+          <label class="f">Jednostka macierzysta<input class="inp" data-h="kJedn" list="dlJedn"></label>
+          <label class="f">Ze stacji<input class="inp" data-h="kZe" list="dlStacje"></label>
+          <label class="f">Do stacji<input class="inp" data-h="kDo" list="dlStacje"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Maszynista pociągu <button class="btn small" type="button" data-copyroute="m">Trasa jak pociąg</button></legend>
+        <div class="grid">
+          <label class="f">Imię i nazwisko<input class="inp" data-h="maszynista" list="dlOsoby"></label>
+          <label class="f">Jednostka macierzysta<input class="inp" data-h="mJedn" list="dlJedn"></label>
+          <label class="f">Ze stacji<input class="inp" data-h="mZe" list="dlStacje"></label>
+          <label class="f">Do stacji<input class="inp" data-h="mDo" list="dlStacje"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Odprawiający</legend>
+        <div class="grid">
+          <label class="f wide">Imię i nazwisko<input class="inp" data-h="odprawiajacy" list="dlOsoby"></label>
+        </div>
+      </fieldset>
+    </div>
+
+    <!-- TAB 2 -->
+    <div class="tabpane" id="t2" role="tabpanel" hidden>
+      <div class="errbox" id="swapErr2" role="alert" style="margin:0 0 12px"></div>
+      <dl class="sum" id="sum"></dl>
+      <p class="hint">L1–L6 to pojazdy trakcyjne – wypełniają się same po wybraniu pojazdu na pierwszej zakładce, w kolejności zależnej od wybranej kabiny (możesz je potem poprawić ręcznie), wiersze 1., 2., … to wagony. Numer inwentarzowy wpisuje się cyframi w kratki (11 cyfr, kreska, cyfra kontrolna) – wystarczy wpisać same cyfry, a przy 11 cyfrach aplikacja podpowie cyfrę kontrolną. Liczby dziesiętne wpisuj z przecinkiem. Długie uwagi (rubryka 14) przenoszą się automatycznie do kolejnych wierszy. Sumy rubryk 7–10 trafiają automatycznie do wiersza próby hamulca (H).</p>
+      <div class="vt-wrap"><table class="ed" id="edTable"></table></div>
+      <div class="addrow">
+        <button class="btn" id="btnAddW" type="button">Dodaj wagon</button>
+        <button class="btn" id="btnAddW5" type="button">Dodaj 5 wagonów</button>
+      </div>
+    </div>
+
+    <!-- TAB 3 -->
+    <div class="tabpane" id="t3" role="tabpanel" hidden>
+      <p class="hint">Wiersze H1–H6 służą do wpisania wykonanych prób hamulca: stacja, rodzaj próby i kto ją wykonał (rubryki 2–6), a obok długość i masy składu w chwili próby (rubryki 7–10). Domyślnie aplikacja przepisuje aktualne sumy z zakładki „Pojazdy”.</p>
+      <div id="hList"></div>
+    </div>
+
+    <!-- TAB 4 -->
+    <div class="tabpane" id="t4" role="tabpanel" hidden>
+      <p class="hint">Każda z rubryk 2–6 ma te same wiersze co rubryka 1. Wypełnij tylko te dane, które na danej stacji się zmieniają – puste pola zostają na podpisy i ręczne wpisy.</p>
+      <div class="seg" id="colSeg" role="group" aria-label="Wybór rubryki"></div>
+      <fieldset>
+        <legend><span id="colTitle"></span>
+          <button class="btn small" type="button" id="btnColCopy">Kopiuj z rubryki 1</button>
+          <button class="btn small" type="button" id="btnColClear">Wyczyść rubrykę</button></legend>
+        <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="colBrakKier"> Brak kierownika w tej rubryce (wykreślenie „Z”)</label>
+        <div class="grid" id="colGrid"></div>
+      </fieldset>
+    </div>
+  </section>
+
+  <section class="panel pv" aria-label="Podgląd dokumentu">
+    <div class="pv-head" id="pvHead"><span>Podgląd dokumentu</span> <span id="pgInfo"></span>
+      <span class="zoom" role="group" aria-label="Powiększenie podglądu">
+        <button class="ib" type="button" id="zoomOut" aria-label="Pomniejsz podgląd">−</button>
+        <span id="zoomVal">100%</span>
+        <button class="ib" type="button" id="zoomIn" aria-label="Powiększ podgląd">+</button></span></div>
+    <div class="desk" id="desk"><div class="scaler" id="scaler"></div></div>
+  </section>
+</main>
+
+<datalist id="dlStacje"></datalist>
+<datalist id="dlOsoby"></datalist>
+<datalist id="dlJedn"></datalist>
+<datalist id="dlPanstwo"><option value="PL"><option value="D"><option value="CZ"><option value="SK"><option value="A"></datalist>
+<datalist id="dlEksp"><option value="KD"><option value="PKPIC"><option value="PR"><option value="PKPC"></datalist>
+<datalist id="dlDop"><option value="+ wagon rowerowy"></datalist>
+<datalist id="dlProba"><option value="S"><option value="U"></datalist>
+
+<dialog class="adm pw" id="dlgPw" aria-labelledby="pwTitle">
+  <form method="dialog" id="pwForm">
+    <div class="adm-head"><h2 id="pwTitle">Dostęp administratora</h2></div>
+    <div class="adm-body">
+      <label class="f">Hasło<input class="inp" type="password" id="pwIn" autocomplete="current-password"></label>
+      <div class="pwerr" id="pwErr" aria-live="polite"></div>
+      <div class="row" style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn" type="button" id="pwCancel">Anuluj</button>
+        <button class="btn primary" type="submit" id="pwOk">Odblokuj</button></div>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="adm" id="dlgAdm" aria-labelledby="admTitle">
+  <div class="adm-head"><h2 id="admTitle">Panel administratora – pojazdy</h2>
+    <button class="btn small" type="button" id="admLock">Zablokuj</button>
+    <button class="btn small" type="button" id="admClose">Zamknij</button></div>
+  <div class="adm-body">
+    <div id="vformBox"></div>
+    <div class="adm-tools">
+      <button class="btn primary" type="button" id="admAdd">Dodaj pojazd</button>
+      <input class="inp" id="admSearch" placeholder="Szukaj pojazdu lub numeru" aria-label="Szukaj pojazdu">
+      <button class="btn" type="button" id="admExport">Eksportuj pojazdy (JSON)</button>
+    </div>
+        <div class="listinfo"><span id="listInfo"></span>
+          <button class="btn small" type="button" id="btnPojList">Importuj pojazdy (JSON)</button>
+          <button class="btn small ghost" type="button" id="btnPojReset" hidden>Przywróć listę domyślną</button>
+          <input type="file" id="pojIn" accept=".json,application/json" hidden></div>
+        <div class="listinfo"><span id="esemInfo"></span>
+          <button class="btn small" type="button" id="btnEsemList">Wczytaj dane jazdy esem (JSON)</button>
+          <button class="btn small ghost" type="button" id="btnEsemReset" hidden>Przywróć dane domyślne</button>
+          <input type="file" id="esemIn" accept=".json,application/json" hidden></div>
+    <div class="at-wrap" style="margin-top:10px"><table class="at" id="admTable"></table></div>
+  </div>
+</dialog>
+
+<nav class="mbar" aria-label="Szybkie akcje">
+  <button class="btn" type="button" id="mEdit">Edycja</button>
+  <button class="btn" type="button" id="mPreview">Podgląd</button>
+  <button class="btn primary" type="button" id="mPdf">Pobierz PDF</button>
+</nav>
+
+<dialog class="adm pw" id="dlgAsk" aria-labelledby="askTitle">
+  <div class="adm-head"><h2 id="askTitle">Potwierdź</h2></div>
+  <div class="adm-body">
+    <p id="askMsg" style="margin:0 0 16px;line-height:1.45"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" type="button" id="askNo">Anuluj</button>
+      <button class="btn primary" type="button" id="askYes">OK</button></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------------- model ---------------- */
+const FIELDS = [
+  {k:'nrInw',  t:'Nr inwentarzowy pojazdu', w:200},
+  {k:'panstwo',t:'Państwo rej.', w:70, list:'dlPanstwo'},
+  {k:'eksp',   t:'Eksploatujący (lit.)', w:90, list:'dlEksp'},
+  {k:'typ',    t:'Typ (seria)', w:90},
+  {k:'cyfr',   t:'Eksploatujący (cyfr.)', w:90},
+  {k:'dl',     t:'Długość [m]', w:80, n:true},
+  {k:'mLad',   t:'Masa ładunku [t]', w:85, n:true},
+  {k:'mWl',    t:'Masa własna [t]', w:85, n:true},
+  {k:'mHam',   t:'Masa ham. [t]', w:85, n:true},
+  {k:'nad',    t:'Stacja nadania', w:130, list:'dlStacje'},
+  {k:'prz',    t:'Stacja przeznaczenia', w:130, list:'dlStacje'},
+  {k:'wezel',  t:'Nr węzła', w:70},
+  {k:'uwagi',  t:'Uwagi / RID', w:170}
+];
+const HEAD = [
+  ['nrPociagu','Numer pociągu'],['data','wyprawionego dnia'],['zeStacji','ze stacji'],['doStacji','do stacji'],
+  ['kierownik','Kierownik pociągu'],['kJedn','jednostka macierzysta'],['kZe','ze stacji'],['kDo','do stacji'],
+  ['maszynista','Maszynista pociągu'],['mJedn','jednostka macierzysta'],['mZe','ze stacji'],['mDo','do stacji'],
+  ['odprawiajacy','Odprawiający']
+];
+const HEAD_KEYS = HEAD.map(h=>h[0]);
+const H_KEYS = ['stacja','proba','wykonal','auto','dl','mLad','mWl','mHam'];
+const STORE_KEY = 'wykaz-r7-dane-v1';
+const P1_ROWS = 18, PN_ROWS = 34;
+
+const emptyRow = () => Object.fromEntries(FIELDS.map(f => [f.k, '']));
+const emptyHead = () => Object.fromEntries(HEAD_KEYS.map(k => [k, '']));
+const emptyH = () => ({stacja:'',proba:'',wykonal:'',auto:true,dl:'',mLad:'',mWl:'',mHam:''});
+const today = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+function freshState(){
+  const h = emptyHead(); h.data = today();
+  return { v:3, pvMode:'all', pojMode:'', sw:{n1:'',p1:'',n2:'',p2:''}, rodzajPoj:'', rodzajPoj2:'', lGroups:[], rodzajDop:'', kabina:'1', kabina2:'1', przejazd:'P', brakKier:false, lLink:{nad:false,prz:false}, head:h, cols:Array.from({length:5}, emptyHead),
+    L:Array.from({length:6}, emptyRow), W:[emptyRow()], H:Array.from({length:6}, emptyH) };
+}
+function normalize(s){
+  const out = freshState();
+  if(!s || typeof s !== 'object') return out;
+  const fixRow = r => { const o = emptyRow(); if(r && typeof r==='object') for(const f of FIELDS) if(r[f.k]!=null) o[f.k]=String(r[f.k]); return o; };
+  const fixHead = r => { const o = emptyHead(); if(r && typeof r==='object') for(const k of HEAD_KEYS) if(r[k]!=null) o[k]=String(r[k]); return o; };
+  const fixH = r => { const o = emptyH(); if(r && typeof r==='object') for(const k of H_KEYS) if(r[k]!=null) o[k] = k==='auto' ? !!r[k] : String(r[k]); return o; };
+  if(s.rodzajPoj!=null) out.rodzajPoj = String(s.rodzajPoj);
+  if(s.rodzajDop!=null) out.rodzajDop = String(s.rodzajDop);
+  if(s.kabina==='2') out.kabina = '2';
+  if(s.kabina2==='2') out.kabina2 = '2';
+  out.pojMode = s.pojMode==='swap' ? 'swap' : (s.pojMode==='plus' || (s.rodzajPoj2 && s.pojMode==null) ? 'plus' : '');
+  if(s.przejazd==='S') out.przejazd = 'S';
+  out.brakKier = !!s.brakKier;
+  if(s.pvMode==='params') out.pvMode = 'params';
+  if(s.sw && typeof s.sw==='object') for(const k of ['n1','p1','n2','p2']) out.sw[k] = String(s.sw[k] ?? '');
+  else if(s.stWym!=null){ out.sw.p1 = String(s.stWym); out.sw.n2 = String(s.stWym); }
+  if(s.rodzajPoj2!=null) out.rodzajPoj2 = String(s.rodzajPoj2);
+  if(Array.isArray(s.lGroupVeh)) out.lGroupVeh = s.lGroupVeh.map(n=>n===2?2:1);
+  if(Array.isArray(s.lGroups)) out.lGroups = s.lGroups.map(n=>parseInt(n,10)).filter(n=>n>0);
+  if(s.lLink && typeof s.lLink==='object') out.lLink = {nad:!!s.lLink.nad, prz:!!s.lLink.prz};
+  else if(s.rodzaj!=null) out.rodzajDop = String(s.rodzaj);
+  if(s.head) out.head = fixHead(s.head);
+  if(Array.isArray(s.cols)) out.cols = Array.from({length:5},(_,i)=>{ const o = fixHead(s.cols[i]); if(s.cols[i] && s.cols[i].brakKier) o.brakKier = true; return o; });
+  if(Array.isArray(s.L)) out.L = Array.from({length:Math.min(12, Math.max(6, s.L.length))},(_,i)=>fixRow(s.L[i]));
+  if(Array.isArray(s.W)) out.W = s.W.length ? s.W.map(fixRow) : [emptyRow()];
+  if(Array.isArray(s.H) && s.v>=2) out.H = Array.from({length:6},(_,i)=>fixH(s.H[i]));
+  return out;
+}
+
+let state = freshState();
+try { const raw = localStorage.getItem(STORE_KEY); if(raw) state = normalize(JSON.parse(raw)); } catch(e) {}
+let saveT = null;
+function persist(){ clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e) {} }, 300); }
+
+/* ---------------- helpers ---------------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const x = parseFloat(String(v ?? '').replace(/\s/g,'').replace(',','.')); return isFinite(x) ? x : 0; };
+const fmtN = x => (Math.round(x*100)/100).toLocaleString('pl-PL', {maximumFractionDigits:2, useGrouping:false});
+const fmtDate = iso => { if(!iso) return ''; const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m ? `${m[3]}.${m[2]}.${m[1]}` : iso; };
+const rowFilled = r => FIELDS.some(f => String(r[f.k]).trim() !== '');
+const headFilled = h => HEAD_KEYS.some(k => String(h[k]).trim() !== '');
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),3200); }
+function fileStem(){
+  const nr = (state.head.nrPociagu||'').trim().replace(/[^\p{L}\p{N}_-]+/gu,'_') || 'bez_numeru';
+  return `wykaz_pojazdow_${nr}_${state.head.data||today()}`;
+}
+/* UIC/EVN check digit (Luhn, weights 2-1-2-… from the left over 11 digits) */
+function evnCheck(d11){
+  let s = 0;
+  for(let i=0;i<11;i++){ let p = +d11[i] * (i%2===0 ? 2 : 1); s += p>9 ? p-9 : p; }
+  return (10 - s%10) % 10;
+}
+function evnStatus(v){
+  const raw = String(v||'');
+  if(/[^\d\s-]/.test(raw)) return null;
+  const d = raw.replace(/\D/g,'');
+  if(d.length===11) return {cls:'add', txt:'+'+evnCheck(d), title:'Dopisz cyfrę kontrolną '+evnCheck(d)};
+  if(d.length===12){ const c = evnCheck(d.slice(0,11));
+    return +d[11]===c ? {cls:'ok', txt:'✓', title:'Cyfra kontrolna poprawna'} : {cls:'bad', txt:'✕', title:'Cyfra kontrolna powinna wynosić '+c}; }
+  return null;
+}
+function totals(){
+  const all = [...state.L, ...state.W].filter(rowFilled);
+  return {
+    n: all.length,
+    dl: all.reduce((s,r)=>s+num(r.dl),0),
+    mLad: all.reduce((s,r)=>s+num(r.mLad),0),
+    mWl: all.reduce((s,r)=>s+num(r.mWl),0),
+    mHam: all.reduce((s,r)=>s+num(r.mHam),0)
+  };
+}
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x===b ? 'true':'false'));
+  document.querySelectorAll('.tabpane').forEach(p => p.hidden = p.id !== b.dataset.tab);
+}));
+
+/* ---------------- tab 1 ---------------- */
+/* default list: export "pojazdy-kd-v1" from 27.09.2026 15:40, compact [pojazd, numery, dlugosc, masaOgolna, masaLadunku, masaWlasna, masaHamujaca] */
+const DEFAULT_RAW = [["31WE-001",["94512140287-5","94512140288-3","94512140289-1","94512140290-9"],"74.4m","172t","37.0t","135t","281t"],["31WE-002",["94512140291-7","94512140292-5","94512140293-3","94512140294-1"],"74.4m","172t","37.0t","135t","281t"],["31WE-003",["94512140295-8","94512140296-6","94512140297-4","94512140298-2"],"74.4m","172t","37.0t","135t","281t"],["31WE-004",["94512140299-0","94512140300-6","94512140301-4","94512140302-2"],"74.4m","172t","37.0t","135t","281t"],["31WE-005",["94512140303-0","94512140304-8","94512140305-5","94512140306-3"],"74.4m","172t","37.0t","135t","281t"],["31WE-020",["94512140643-9","94512140644-7","94512140645-4","94512140646-2"],"74.4m","172t","36.0t","","281t"],["31WE-021",["94512140647-0","94512140648-8","94512140649-6","94512140650-4"],"74.4m","172t","36.0t","","281t"],["31WE-022",["94512140651-2","94512140652-0","94512140653-8","94512140654-6"],"74.4m","172t","36.0t","","281t"],["31WE-023",["94512140655-3","94512140656-1","94512140657-9","94512140658-7"],"74.4m","172t","36.0t","","281t"],["31WE-024",["94512140659-5","94512140660-3","94512140661-1","94512140662-9"],"74.4m","172t","36.0t","","281t"],["36WEa-011",["94512140508-4","94512140509-2","94512140510-0"],"58.4m","135t","27.0t","","217t"],["36WEa-012",["94512140511-8","94512140512-6","94512140513-4"],"58.4m","135t","27.0t","","217t"],["36WEa-013",["94512140514-2","94512140515-9","94512140516-7"],"58.4m","135t","27.0t","","217t"],["36WEa-014",["94512140517-5","94512140518-3","94512140519-1"],"58.4m","135t","27.0t","","217t"],["36WEa-015",["94512140520-9","94512140521-7","94512140512-5"],"58.4m","135t","27.0t","","217t"],["36WEa-016",["94512140523-3","94512140524-1","94512140525-8"],"58.4m","135t","27.0t","","217t"],["36WEh-012",["90512440001-1","90512440003-7","90512440002-9"],"59.3m","143t","21.5t","","228t"],["36WEh-013",["90512440004-5","90512440006-0","90512440005-2"],"59.3m","143t","21.5t","","228t"],["36WEh-014",["90512440007-8","90512440009-4","90512440008-6"],"59.3m","143t","21.5t","","228t"],["36WEh-015",["90512440010-2","90512440012-8","90512440011-0"],"59.3m","143t","21.5t","","228t"],["36WEh-016",["90512440013-6","90512440015-1","90512440014-4"],"59.3m","143t","21.5t","","228t"],["36WEh-017",["90512440016-9","90512440018-5","90512440017-7"],"59.3m","143t","21.5t","","228t"],["45WE-019",["94512140829-4","94512140830-2","94512140831-0","94512140832-8","94512140833-6"],"90.4m","207t","38.0t","","335t"],["45WE-020",["94512140834-4","94512140835-1","94512140836-9","94512140837-7","94512140838-5"],"90.4m","207t","38.0t","","335t"],["45WE-021",["94512140839-3","94512140840-1","94512140841-9","94512140842-7","94512140843-5"],"90.4m","207t","38.0t","","335t"],["45WE-022",["94512140844-3","94512140845-0","94512140846-8","94512140847-6","94512140848-4"],"90.4m","207t","38.0t","","335t"],["45WE-023",["94512140849-2","94512140850-0","94512140851-8","94512140852-6","94512140853-4"],"90.4m","207t","38.0t","","335t"],["45WE-024",["94512140854-2","94512140855-9","94512140856-7","94512140857-5","94512140858-3"],"90.4m","207t","38.0t","","335t"],["45WE-025",["94512140859-1","94512140860-9","94512140861-7","94512140862-5","94512140863-3"],"90.4m","207t","38.0t","","335t"],["45WE-026",["94512140864-1","94512140865-8","94512140866-6","94512140867-4","94512140868-2"],"90.4m","207t","38.0t","","335t"],["45WE-027",["94512140869-0","94512140870-8","94512140871-6","94512140872-4","94512140873-2"],"90.4m","207t","38.0t","","335t"],["45WE-028",["94512140874-0","94512140875-7","94512140876-5","94512140877-3","94512140878-1"],"90.4m","207t","38.0t","","335t"],["45WE-029",["94512140879-9","94512140880-7","94512140881-5","94512140882-3","94512140883-1"],"90.4m","207t","38.0t","","335t"],["48WEc-024",["94512141698-2","94512141699-0","94512141700-6","94512141701-4","94512141702-2"],"90.53m","201t","32.0t","","358t"],["48WEc-025",["94512141703-0","94512141704-8","94512141705-5","94512141706-3","94512141707-1"],"90.53m","201t","32.0t","","358t"],["48WEc-026",["94512141708-9","94512141709-7","94512141710-5","94512141711-3","94512141712-1"],"90.53m","201t","32.0t","","358t"],["48WEc-027",["94512141713-9","94512141714-7","94512141715-4","94512141716-2","94512141717-0"],"90.53m","201t","32.0t","","358t"],["48WEc-028",["94512141718-8","94512141719-6","94512141720-4","94512141721-2","94512141722-0"],"90.53m","201t","32.0t","","358t"],["48WEc-029",["94512141761-8","94512141762-6","94512141763-4","94512141764-2","94512141765-9"],"90.53m","201t","32.0t","","358t"],["48WEc-030",["94512141766-7","94512141767-5","94512141768-3","94512141769-1","94512141770-9"],"90.53m","201t","32.0t","","358t"],["48WEc-031",["94512141771-7","94512141772-5","94512141773-3","94512141774-1","94512141775-8"],"90.53m","201t","32.0t","","358t"],["48WEc-032",["94512141776-6","94512141777-4","94512141778-2","94512141779-0","94512141780-8"],"90.53m","201t","32.0t","","358t"],["48WEc-033",["94512141781-6","94512141782-4","94512141783-2","94512141784-0","94512141785-7"],"90.53m","201t","32.0t","","358t"],["48WEc-034",["94512141786-5","94512141787-3","94512141788-1","94512141789-9","94512141790-7"],"90.53m","201t","32.0t","","358t"],["48WEc-035",["94512141791-5","94512141792-3","94512141793-1","94512141794-9","94512141795-6"],"90.53m","201t","32.0t","","358t"],["48WEc-036",["94512141796-4","94512141797-2","94512141798-0","94512141799-8","94512141800-4"],"90.53m","201t","32.0t","","358t"],["48WEc-037",["94512141831-9","94512141832-7","94512141833-5","94512141834-3","94512141835-0"],"90.53m","201t","32.0t","","358t"],["48WEc-038",["94512141836-8","94512141837-6","94512141838-4","94512141839-2","94512141840-0"],"90.53m","201t","32.0t","","358t"],["48WEc-039",["94512141841-8","94512141842-6","94512141843-4","94512141844-2","94512141845-9"],"90.53m","201t","32.0t","","358t"],["48WEc-040",["94512141846-7","94512141847-5","94512141848-3","94512141849-1","94512141850-9"],"90.53m","201t","32.0t","","358t"],["48WEc-041",["94512141811-1","94512141812-9","94512141813-7","94512141814-5","94512141815-2"],"90.53m","201t","32.0t","","358t"],["48WEc-042",["94512141816-0","94512141817-8","94512141818-6","94512141819-4","94512141820-2"],"90.53m","201t","32.0t","","358t"],["48WEc-043",["94512141821-0","94512141822-8","94512141823-6","94512141824-4","94512141825-1"],"90.53m","201t","32.0t","","358t"],["48WEc-044",["94512141826-9","94512141827-7","94512141828-5","94512141829-3","94512141830-1"],"90.53m","201t","32.0t","","358t"],["48WEc-045",["94512141851-7","94512141852-5","94512141853-3","94512141854-1","94512141855-8"],"90.53m","201t","32.0t","","358t"],["48WEc-046",["94512141856-6","94512141857-4","94512141858-2","94512141859-0","94512141860-8"],"90.53m","201t","32.0t","","358t"],["48WEc-047",["94512141801-2","94512141802-0","94512141803-8","94512141804-6","94512141805-3"],"90.53m","201t","32.0t","","358t"],["48WEc-048",["94512141806-1","94512141807-9","94512141808-7","94512141809-5","94512141810-3"],"90.53m","201t","32.0t","","358t"],["48WEc-053",["94512142042-2","94512142043-0","94512142044-8","94512142045-5","94512142046-3"],"90.53m","201t","32.0t","","358t"],["48WEc-054",["94512142047-1","94512142048-9","94512142049-7","94512142050-5","94512142051-3"],"90.53m","201t","32.0t","","358t"],["48WEc-055",["94512142052-1","94512142053-9","94512142054-7","94512142055-4","94512142056-2"],"90.53m","201t","32.0t","","358t"],["48WEc-056",["94512142057-0","94512142058-8","94512142059-6","94512142060-4","94512142061-2"],"90.53m","201t","32.0t","","358t"],["48WEc-057",["94512142062-0","94512142063-8","94512142064-6","94512142065-3","94512142066-1"],"90.53m","201t","32.0t","","358t"],["48WEc-058",["94512142067-9","94512142068-7","94512142069-5","94512142070-3","94512142071-1"],"90.53m","201t","32.0t","","358t"],["48WEc-059",["94512142072-9","94512142073-7","94512142074-5","94512142075-2","94512142076-0"],"90.53m","201t","32.0t","","358t"],["48WEc-060",["94512142077-8","94512142078-6","94512142079-4","94512142080-2","94512142081-0"],"90.53m","201t","32.0t","","358t"],["48WEc-061",["94512142082-8","94512142083-6","94512142084-4","94512142085-1","94512142086-9"],"90.53m","201t","32.0t","","358t"],["48WEc-062",["94512142087-7","94512142088-5","94512142089-3","94512142090-1","94512142091-9"],"90.53m","201t","32.0t","","358t"],["48WEc-063",["94512142472-1","94512142473-9","94512142474-7","94512142475-4","94512142476-2"],"90.53m","201t","32.0t","","358t"],["48WEc-064",["94512142477-0","94512142478-8","94512142479-6","94512142480-4","94512142481-2"],"90.53m","201t","32.0t","","358t"],["48WEc-065",["94512142482-0","94512142483-8","94512142484-6","94512142485-3","94512142486-1"],"90.53m","201t","32.0t","","358t"],["48WEc-066",["94512142487-9","94512142488-7","94512142489-5","94512142490-3","94512142491-1"],"90.53m","201t","32.0t","","358t"],["48WEc-067",["94512142452-3","94512142453-1","94512142454-9","94512142455-6","94512142456-4"],"90.53m","201t","32.0t","","358t"],["48WEc-068",["94512142457-2","94512142458-0","94512142459-8","94512142460-6","94512142461-4"],"90.53m","201t","32.0t","","358t"],["48WEc-069",["94512142462-2","94512142463-0","94512142464-8","94512142465-5","94512142466-3"],"90.53m","201t","32.0t","","358t"],["48WEc-070",["94512142467-1","94512142468-9","94512142469-7","94512142470-5","94512142471-3"],"90.53m","201t","32.0t","","358t"],["48WEc-071",["94512142442-4","94512142443-2","94512142444-0","94512142445-7","94512142446-5"],"90.53m","201t","32.0t","","358t"],["EN57 AKD-1937",["94512122661-3","94512122662-1","94512122663-9"],"65.17m","154.5t","27.4t","127.1t","174t"],["EN57 AKM-1718",["94512120117-8","94512120118-6","94512120119-4"],"64.77m","140t","14.0t","","165t"],["EN57 AL-1501",["94512122301-6","94512122302-4","94512122303-2"],"64.62m","147t","15.0t","","161t"],["EN57 AL-1542",["94512122370-1","94512122371-9","94512122379-7"],"64.62m","147t","17.0t","130t","161t"],["EN57 AL-1938",["94512130333-9","94512130334-7","94512130335-4"],"63.97m","145t","18.0t","","161t"],["EN57-1703",["94512122481-6","94512122482-4","94512122483-2"],"63.97m","138t","12.0t","","130t"],["SA106-011",["95512810048-6"],"24.5m","59t","9.0t","50t","82t"],["SA132-002",["95512820023-0","95512820024-8"],"41.7m","98t","22.0t","76t","147t"],["SA134-001",["95512820025-5","95512820026-3"],"41.7m","86t","10.0t","76t","147t"],["SA134-003",["95512820009-9","95512820010-7"],"41.7m","98t","22.0t","76t","147t"],["SA134-004",["95512820011-5","95512820012-3"],"41.7m","98t","22.0t","76t","147t"],["SA134-005",["95512820013-1","95512820014-9"],"41.7m","98t","22.0t","76t","147t"],["SA134-006",["95512820015-6","95512820016-7"],"41.7m","98t","22.0t","76t","147t"],["SA134-007",["95512720045-4","95512720046-2"],"41.7m","98t","22.0t","76t","147t"],["SA134-023",["95512820017-2","95512820018-0"],"41.7m","98t","22.0t","76t","147t"],["SA134-024",["95512820019-8","95512820020-6"],"41.7m","98t","22.0t","76t","147t"],["SA134-025",["95512820021-4","95512820022-2"],"41.7m","98t","22.0t","76t","147t"],["SA135-001",["95512810018-2"],"24.5m","55t","11.0t","44t","93t"],["SA135-002",["95512810019-0"],"24.5m","55t","11.0t","44t","93t"],["SA135-003",["95512810020-8"],"24.5m","55t","11.0t","44t","93t"],["SA135-004",["95512810049-7"],"24.5m","55t","11.0t","44t","93t"],["SA135-005",["95512810050-5"],"24.5m","55t","11.0t","44t","93t"],["SA135-006",["95512810051-3"],"24.5m","55t","11.0t","44t","93t"],["SA135-007",["95512810052-1"],"24.5m","55t","11.0t","44t","93t"],["SA135-008",["95512810053-9"],"24.5m","55t","11.0t","44t","93t"],["SA135-009",["95512810054-7"],"24.5m","55t","11.0t","44t","93t"],["SA139-010",["95512720136-1","95512720137-9"],"43.73m","106t","18.0t","","157t"],["SA139-011",["95512720144-5","95512720145-2"],"43.73m","106t","18.0t","","157t"],["SA139-012",["95512720146-0","95512720147-8"],"43.73m","106t","18.0t","","157t"],["SA139-013",["95512720148-6","95512720149-4"],"43.73m","106t","18.0t","","157t"],["SA139-014",["95512720150-2","95512720151-0"],"43.73m","106t","18.0t","","157t"]];
+const VEH_DEFAULTS = {panstwo:'PL', eksp:'KD', cyfr:'3252'};
+const POJ_KEY = 'wykaz-r7-lista-pojazdow-v2';
+const unitNum = v => { const x = parseFloat(String(v ?? '').replace(',','.').replace(/[^\d.]/g,'')); return isFinite(x) ? x : null; };
+const seriesOf = name => String(name).replace(/[-\s]?\d+$/,'').trim();
+function mkVeh(name, nums, dl, mOg, mLad, mWl, mHam, extra){
+  const og = unitNum(mOg), lad = unitNum(mLad);
+  let wl = unitNum(mWl); if(wl==null && og!=null && lad!=null) wl = og - lad;
+  const x = extra || {};
+  return { name:String(name).trim(), series:seriesOf(name), nums:(nums||[]).map(String).filter(Boolean),
+    dl:unitNum(dl), og, mLad:lad, mWl:wl, mWlRaw:unitNum(mWl), mHam:unitNum(mHam),
+    typ: x.typ ? String(x.typ).trim() : '', esOg: unitNum(x.esemMasaOgolna), esHam: unitNum(x.esemMasaHamujaca) };
+}
+/* "SA134-003 do SA134-007" -> individual numbers (old list format with names only) */
+function expandName(name){
+  const parts = String(name).trim().split(/\s+(?:do|-|–)\s+/);
+  if(parts.length===2){
+    const a = /^(.*?)(\d+)$/.exec(parts[0].trim()), b = /^(.*?)(\d+)$/.exec(parts[1].trim());
+    if(a && b && a[1]===b[1]){
+      const n1 = +a[2], n2 = +b[2], w = a[2].length;
+      if(n2>=n1 && n2-n1<=300){ const out=[]; for(let n=n1;n<=n2;n++) out.push(a[1]+String(n).padStart(w,'0')); return out; }
+    }
+  }
+  return [String(name).trim()];
+}
+/* accepts: {format:"pojazdy-kd-v1", pojazdy:[...]}  or  [{name:...}] (brake-test card export) */
+function parseVehicleFile(data){
+  if(data && Array.isArray(data.pojazdy))
+    return data.pojazdy.filter(v=>v && v.pojazd).map(v=>mkVeh(v.pojazd, v.numeryInwentarzowe, v.dlugosc, v.masaOgolna, v.masaLadunku, v.masaWlasna, v.masaHamujaca, v));
+  if(Array.isArray(data))
+    return data.filter(v=>v && typeof v.name==='string' && v.name.trim()).flatMap(v=>expandName(v.name).map(u=>mkVeh(u, [], null, v.masaOgolna, null, null, v.masaHamujaca)));
+  return [];
+}
+const DEFAULT_VEH = DEFAULT_RAW.map(r=>mkVeh(...r));
+let vehList = DEFAULT_VEH, vehCustom = false, vehSource = '';
+try { const raw = localStorage.getItem(POJ_KEY); if(raw){ const o = JSON.parse(raw); const l = parseVehicleFile(o.data); if(l.length){ vehList = l; vehCustom = true; vehSource = o.name||''; } } } catch(e) {}
+const findVeh = name => vehList.find(v => v.name === name);
+
+function buildPojSelect(){ fillPojSelect($('#rodzPoj'), state.rodzajPoj, '— wybierz pojazd —'); fillPojSelect($('#rodzPoj2'), state.rodzajPoj2, '— brak —'); updListInfo(); }
+function fillPojSelect(sel, cur, emptyLbl){
+  const groups = new Map();
+  for(const v of vehList){ if(!groups.has(v.series)) groups.set(v.series, []); groups.get(v.series).push(v); }
+  let html = `<option value="">${emptyLbl}</option>`;
+  for(const [ser, arr] of groups){
+    html += `<optgroup label="${esc(ser)}">${arr.map(v=>`<option value="${esc(v.name)}">${esc(v.name)}${v.nums.length?` (${v.nums.length} ${v.nums.length===1?'człon':(v.nums.length<5?'człony':'członów')})`:''}</option>`).join('')}</optgroup>`;
+  }
+  if(cur && !findVeh(cur)) html += `<option value="${esc(cur)}">${esc(cur)} (spoza listy)</option>`;
+  sel.innerHTML = html; sel.value = cur;
+}
+function updListInfo(){
+  $('#listInfo').textContent = (vehCustom ? `Lista ${vehSource?'„'+vehSource+'”':'własna'}: ` : 'Lista domyślna (wykaz z 27.09.2026): ') + vehList.length + ' pojazdów.';
+  $('#btnPojReset').hidden = !vehCustom;
+  if($('#dlgAdm').open) admRender();
+}
+function syncCab(){
+  document.querySelectorAll('[data-cab]').forEach(b => {
+    const k = b.dataset.veh==='2' ? state.kabina2 : state.kabina;
+    b.setAttribute('aria-pressed', b.dataset.cab===k ? 'true':'false');
+    if(b.dataset.veh==='2') b.disabled = !state.rodzajPoj2;
+  });
+  $('#v2Ask').hidden = !!state.pojMode; $('#v2Box').hidden = !state.pojMode;
+  $('#stWymBox').hidden = state.pojMode!=='swap'; syncSwapFields();
+  $('#v2Lbl').textContent = state.pojMode==='swap' ? 'Pojazd po wymianie (w rogu: „/”)' : 'Pojazd 2 – połączone jednostki (w rogu: „+”)';
+
+  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode===state.przejazd ? 'true':'false'));
+  document.querySelectorAll('[data-pv]').forEach(b => b.setAttribute('aria-pressed', b.dataset.pv===state.pvMode ? 'true':'false'));
+}
+
+/* ---- column 5 "typ (seria)" per KD table; ranges by vehicle number, otherwise whole series ---- */
+const TYP_RULES = [
+  ['SA132', null, null, '218Mb'],
+  ['SA106', null, null, '214M'],
+  ['SA135', 1, 3, '214Mb'],
+  ['SA135', 4, 9, '214Mb M1'],
+  ['SA134', 1, 1, '218Md'],
+  ['SA134', 3, 7, '218Md'],
+  ['SA134', 23, 25, '218Md M1'],
+  ['SA139', null, null, '223M'],
+  ['EN57', null, null, '5B+6B+5B'],
+  ['EN57AL', null, null, 'EN57AL'],
+  ['EN57AKD', null, null, 'EN57AKD'],
+  ['36WEa', null, null, '36WEa'],
+  ['36WEh', null, null, '36WEh'],
+  ['31WE', null, null, '31WE'],
+  ['45WE', null, null, '45WE'],
+  ['48WEc', null, null, '48WEc'],
+  ['VT642', null, null, 'VT642']
+];
+function typOf(v){
+  if(v.typ) return v.typ;
+  const ser = normKey(v.series), m = /(\d+)$/.exec(v.name), no = m ? +m[1] : null;
+  for(const [rs, a, b, typ] of TYP_RULES){
+    if(normKey(rs) !== ser) continue;
+    if(a==null || (no!=null && no>=a && no<=b)) return typ;
+  }
+  return v.series.replace(/\s+/g,'');
+}
+
+/* ---- data for "S" runs (przejazd esem), keyed by vehicle series / number ranges ---- */
+/* tabela KD: masa ogólna i masa hamująca rzeczywista dla próżnego składu (bez wagonu rowerowego) */
+const DEFAULT_ESEM_RAW = [["SA106-011",51,80,51],["SA109-003 - SA109-004",46,64,46],["SA132-002",77,135,77],["SA134-001 do SA134-002",77,135,77],["SA134-003 do SA134-007",77,135,77],["SA134-023 do SA134-025",77,135,77],["SA135-001 do SA135-003",45,69,45],["SA135-004 do SA135-009",45,69,45],["SA139-010",88,132,88],["SA139-010 do SA139-014",88,132,88],["31WE-001 do 31WE-005",136,281,136],["31WE-020 do 31WE-024",136,281,136],["36WEa-011 do 36WEa-016",108,217,108],["36WEh-012 do 36WEh-017",121.5,228,121.5],["45WE-019 do 45WE-029",169,335,169],["48WEc-024 do 48WEc-062",169,358,169],["EN57-1703",126,124,126],["EN57AKD 1937",127.5,155,127.5],["EN57AL 1501",127.5,133,127.5],["EN57AL 1542",130.6,133,130.6],["EN57AL 1938",127,133,127]];
+const ESEM_KEY = 'wykaz-r7-dane-esem-v2';
+const normKey = t => String(t||'').toUpperCase().replace(/[\s-]/g,'');
+function buildEsem(list){
+  const byUnit = new Map(), bySeries = new Map();
+  for(const e of list){
+    const rec = {name:e.name, og:unitNum(e.masaOgolna), ham:unitNum(e.masaHamujaca), pusty:unitNum(e.masaPusty)};
+    if(rec.og==null && rec.ham==null) continue;
+    for(const u of expandName(e.name)){ byUnit.set(normKey(u), rec); const sk = normKey(seriesOf(u)); if(!bySeries.has(sk)) bySeries.set(sk, rec); }
+  }
+  return {byUnit, bySeries, count:list.length};
+}
+const DEFAULT_ESEM = DEFAULT_ESEM_RAW.map(r=>({name:r[0], masaOgolna:r[1], masaHamujaca:r[2], masaPusty:r[3]}));
+let esem = buildEsem(DEFAULT_ESEM), esemCustom = false, esemSource = '';
+try { const raw = localStorage.getItem(ESEM_KEY); if(raw){ const o = JSON.parse(raw); if(Array.isArray(o.data)){ const e = buildEsem(o.data.filter(x=>x&&x.name)); if(e.byUnit.size){ esem = e; esemCustom = true; esemSource = o.name||''; } } } } catch(e) {}
+function findEsem(v){
+  if(v.esOg!=null || v.esHam!=null) return {rec:{name:v.name, og:v.esOg, ham:v.esHam, pusty:v.esOg}, how:'own'};
+  const u = esem.byUnit.get(normKey(v.name)); if(u) return {rec:u, how:'unit'};
+  const sr = esem.bySeries.get(normKey(v.series)); if(sr) return {rec:sr, how:'series'};
+  return null;
+}
+function updEsemInfo(){
+  $('#esemInfo').textContent = (esemCustom ? `Dane jazdy esem z pliku${esemSource?' „'+esemSource+'”':''}` : 'Dane jazdy esem: tabela KD dla próżnego składu') + ` (${esem.count} pozycji).`;
+  $('#btnEsemReset').hidden = !esemCustom;
+}
+
+/* fill L rows: vehicle 1 then vehicle 2, each with its own cab direction;
+   parameters in the first row of each vehicle's group */
+const selectedVehs = () => [[state.rodzajPoj, state.kabina, 1], [state.rodzajPoj2, state.kabina2, 2]]
+  .map(([n,k,i]) => ({v:findVeh(n), kab:k, i})).filter(x => x.v && x.v.nums.length);
+const groupStarts = () => { const out=[]; let s=0; for(const n of state.lGroups){ if(s>=state.L.length) break; out.push([s, Math.min(n, state.L.length-s)]); s+=n; } return out; };
+function vehParams(v, notes){
+  const base = { typ: typOf(v), dl: v.dl!=null ? fmtN(v.dl) : '' };
+  if(state.przejazd !== 'S')
+    return {...base, mLad: v.mLad!=null ? fmtN(v.mLad) : '', mWl: v.mWl!=null ? fmtN(v.mWl) : '', mHam: v.mHam!=null ? fmtN(v.mHam) : ''};
+  const m = findEsem(v);
+  if(!m){ notes.push(`${v.name}: brak danych jazdy esem – masy z wykazu pojazdów, ładunek „-”.`);
+    return {...base, mLad:'-', mWl: v.mWl!=null ? fmtN(v.mWl) : '', mHam: v.mHam!=null ? fmtN(v.mHam) : ''}; }
+  const r = m.rec;
+  /* mass of the empty unit: "masaPusty" if given, otherwise masa ogólna minus load */
+  let wl = null;
+  if(r.pusty!=null && r.pusty>0) wl = r.pusty;
+  else if(r.og!=null) wl = v.mLad!=null ? r.og - v.mLad : r.og;
+  if(m.how==='series') notes.push(`${v.name}: dane esem dopasowane po serii (${r.name}).`);
+  return {...base, mLad:'-', mWl: wl!=null ? fmtN(wl) : '', mHam: r.ham!=null ? fmtN(r.ham) : (v.mHam!=null ? fmtN(v.mHam) : '')};
+}
+function fillFromVehicles(){
+  const vs = selectedVehs();
+  if(!vs.length){ state.lGroups = []; $('#fillInfo').textContent = ''; buildEditor(); return; }
+  const prevUw = new Map(state.L.filter(r=>r.nrInw && r.uwagi).map(r=>[r.nrInw, r.uwagi]));
+  const rows = [], groups = [], notes = [];
+  for(const {v, kab, i:vi} of vs){
+    const swap = state.pojMode==='swap' && vs.length===2;
+    /* exchange: stations 11/12 entered separately for each vehicle (empty = train's start/end station) */
+    const nad = swap ? (vi===1 ? (state.sw.n1 || state.head.zeStacji) : state.sw.n2) : state.head.zeStacji;
+    const prz = swap ? (vi===1 ? state.sw.p1 : (state.sw.p2 || state.head.doStacji)) : state.head.doStacji;
+    const nums = kab==='2' ? [...v.nums].reverse() : [...v.nums];
+    groups.push(nums.length);
+    const par = vehParams(v, notes);
+    nums.forEach((n,k)=>{
+      const r = emptyRow(); r.nrInw = n; r.uwagi = prevUw.get(n) || '';
+      if(k===0) Object.assign(r, VEH_DEFAULTS, par, { nad, prz });
+      rows.push(r);
+    });
+  }
+  const total = rows.length;
+  while(rows.length < 6) rows.push(emptyRow());
+  state.L = rows.slice(0, 12); state.lGroups = groups; state.lGroupVeh = vs.map(x => x.i);
+  state.lLink = {nad:true, prz:true};
+  buildEditor();
+  const desc = vs.map(x => `${x.v.name} (kabina ${x.kab})`).join(' + ');
+  $('#fillInfo').textContent = `Wpisano ${desc} do L1–L${Math.min(total,12)}` + (state.przejazd==='S' ? ', przejazd „S” – bez ładunku.' : '.') +
+    (total>6 ? ` Pojazdy mają razem ${total} członów, więc sekcja L ma dodatkowe wiersze ponad L6.` : '') + (notes.length ? ' ' + notes.join(' ') : '');
+}
+const rodzajText = () => [[state.rodzajPoj, state.pojMode ? state.rodzajPoj2 : ''].map(x=>String(x||'').trim()).filter(Boolean).join(state.pojMode==='swap' ? ' / ' : ' + '), String(state.rodzajDop||'').trim()].filter(Boolean).join(' ');
+document.querySelectorAll('[data-pojmode]').forEach(b => b.addEventListener('click', () => {
+  state.pojMode = b.dataset.pojmode; syncCab(); changed();
+  $('#rodzPoj2').focus();
+}));
+$('#btnV2Off').addEventListener('click', () => {
+  state.pojMode = ''; state.rodzajPoj2 = ''; state.kabina2 = '1'; state.sw = {n1:'',p1:'',n2:'',p2:''}; $('#rodzPoj2').value = '';
+  syncCab();
+  if(selectedVehs().length) fillFromVehicles(); else { state.lGroups = []; $('#fillInfo').textContent = ''; buildEditor(); }
+  changed();
+});
+/* exchange of vehicles: start rows of vehicle 1 and vehicle 2 in L */
+function swapStarts(){
+  if(state.pojMode!=='swap') return null;
+  const st = groupStarts(), veh = state.lGroupVeh || [];
+  const g1 = veh.indexOf(1), g2 = veh.indexOf(2);
+  if(g1<0 || g2<0 || !st[g1] || !st[g2]) return null;
+  return {s1: st[g1][0], s2: st[g2][0]};
+}
+const stNorm = t => String(t||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('pl');
+function swapError(){
+  const ss = swapStarts(); if(!ss) return '';
+  const a = state.L[ss.s1].prz, b = state.L[ss.s2].nad;
+  if(!String(a).trim() && !String(b).trim()) return 'Wymiana pojazdu: podaj stację wymiany – stacja przeznaczenia pojazdu 1 (rubryka 12) musi być stacją nadania pojazdu 2 (rubryka 11).';
+  if(stNorm(a) !== stNorm(b)) return `Błąd wymiany pojazdu: stacja przeznaczenia pojazdu 1 (rubryka 12, L${ss.s1+1}: „${String(a).trim()||'—'}”) musi być taka sama jak stacja nadania pojazdu 2 (rubryka 11, L${ss.s2+1}: „${String(b).trim()||'—'}”).`;
+  return '';
+}
+function validateSwap(){
+  const msg = swapError(), ss = swapStarts();
+  $('#swapErr1').textContent = msg; $('#swapErr2').textContent = msg;
+  document.querySelectorAll('#edTable input.err').forEach(i => i.classList.remove('err'));
+  if(msg && ss){
+    const a = $(`#edTable tr[data-sec="L"][data-i="${ss.s1}"] input[data-f="prz"]`), b = $(`#edTable tr[data-sec="L"][data-i="${ss.s2}"] input[data-f="nad"]`);
+    a && a.classList.add('err'); b && b.classList.add('err');
+  }
+  return msg;
+}
+/* the four station fields of an exchange are bound to rows L of both vehicles */
+$('#v2Box').closest('.rodz-row').after($('#stWymBox'));
+const SW_FIELDS = {sw1n:['n1',1,'nad'], sw1p:['p1',1,'prz'], sw2n:['n2',2,'nad'], sw2p:['p2',2,'prz']};
+function syncSwapFields(){
+  const ss = swapStarts();
+  for(const [id,[key,veh,f]] of Object.entries(SW_FIELDS)){
+    const el = document.getElementById(id); if(!el || el === document.activeElement) continue;
+    el.value = ss ? state.L[veh===1 ? ss.s1 : ss.s2][f] : state.sw[key];
+  }
+}
+Object.entries(SW_FIELDS).forEach(([id,[key,veh,f]]) => document.getElementById(id).addEventListener('input', e => {
+  const val = e.target.value, prev = state.sw[key], ss = swapStarts();
+  state.sw[key] = val;
+  if(ss) state.L[veh===1 ? ss.s1 : ss.s2][f] = val;
+  /* typing the exchange station for vehicle 1 fills the start station of vehicle 2 (while it follows it) */
+  if(id==='sw1p'){
+    const n2 = ss ? state.L[ss.s2].nad : state.sw.n2;
+    if(!n2 || n2===prev){ state.sw.n2 = val; if(ss) state.L[ss.s2].nad = val; document.getElementById('sw2n').value = val; }
+  }
+  if(state.lLink){ if(id==='sw1n') state.lLink.nad = false; if(id==='sw2p') state.lLink.prz = false; }
+  buildEditor(); changed();
+}));
+
+function onPojChange(which, val){
+  if(which==='2' && val && val===state.rodzajPoj){ toast('Ten pojazd jest już wybrany jako pojazd 1.'); $('#rodzPoj2').value = state.rodzajPoj2; return; }
+  if(which==='1' && val && val===state.rodzajPoj2){ state.rodzajPoj2 = ''; $('#rodzPoj2').value = ''; }
+  if(which==='1') state.rodzajPoj = val; else state.rodzajPoj2 = val;
+  syncCab();
+  if(selectedVehs().length) fillFromVehicles(); else { state.lGroups = []; $('#fillInfo').textContent = ''; buildEditor(); }
+  changed();
+}
+$('#rodzPoj').addEventListener('change', e => onPojChange('1', e.target.value));
+$('#rodzPoj2').addEventListener('change', e => onPojChange('2', e.target.value));
+document.querySelectorAll('[data-cab]').forEach(b => b.addEventListener('click', () => {
+  const key = b.dataset.veh==='2' ? 'kabina2' : 'kabina';
+  if(state[key] === b.dataset.cab) return;
+  state[key] = b.dataset.cab; syncCab();
+  if(selectedVehs().length){ fillFromVehicles(); changed(); return; }
+  if(key==='kabina2') return;
+  /* manual entries: reverse the order of inventory numbers, other data stays in place */
+  const idx = state.L.map((r,i)=>r.nrInw.trim()?i:-1).filter(i=>i>=0);
+  const vals = idx.map(i=>state.L[i].nrInw).reverse();
+  idx.forEach((i,k)=>{ state.L[i].nrInw = vals[k]; });
+  if(idx.length) $('#fillInfo').textContent = `Kolejność numerów w L1–L${idx[idx.length-1]+1} ustawiona od strony kabiny ${state.kabina}.`;
+  buildEditor(); changed();
+}));
+document.querySelectorAll('[data-pv]').forEach(b => b.addEventListener('click', () => {
+  if(state.pvMode === b.dataset.pv) return;
+  state.pvMode = b.dataset.pv; syncCab(); persist(); renderPreview();
+}));
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+  if(state.przejazd === b.dataset.mode) return;
+  state.przejazd = b.dataset.mode; syncCab();
+  if(selectedVehs().length) fillFromVehicles();
+  else if(state.przejazd==='S'){ const st = state.lGroups.length ? groupStarts().map(g=>g[0]) : [0];
+    st.forEach(i => { if(state.L[i] && rowFilled(state.L[i])) state.L[i].mLad = '-'; }); buildEditor();
+    toast('Ładunek ustawiony na „-”. Masy własną i hamującą popraw ręcznie – pojazdy nie pochodzą z listy.'); }
+  changed();
+}));
+$('#btnEsemList').addEventListener('click', () => $('#esemIn').click());
+$('#esemIn').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const data = JSON.parse(rd.result); const list = (Array.isArray(data)?data:[]).filter(x=>x && typeof x.name==='string');
+      const built = buildEsem(list); if(!built.byUnit.size) throw new Error('empty');
+      esem = built; esemCustom = true; esemSource = f.name;
+      try { localStorage.setItem(ESEM_KEY, JSON.stringify({name:f.name, data:list})); } catch(err) {}
+      updEsemInfo(); if(state.przejazd==='S' && selectedVehs().length){ fillFromVehicles(); changed(); }
+      toast(`Wczytano dane jazdy esem z pliku „${f.name}”.`);
+    } catch(err){ toast('Plik musi zawierać listę pojazdów z polami „name”, „masaOgolna” i „masaHamujaca”.'); }
+    e.target.value = '';
+  };
+  rd.readAsText(f);
+});
+$('#btnEsemReset').addEventListener('click', () => {
+  esem = buildEsem(DEFAULT_ESEM); esemCustom = false; esemSource = ''; try { localStorage.removeItem(ESEM_KEY); } catch(e) {}
+  updEsemInfo(); if(state.przejazd==='S' && selectedVehs().length){ fillFromVehicles(); changed(); }
+  toast('Przywrócono domyślne dane jazdy esem.');
+});
+$('#rodzDop').addEventListener('input', e => { state.rodzajDop = e.target.value; changed(); });
+$('#btnPojList').addEventListener('click', async () => {
+  if(await askConfirm('Import listy pojazdów', 'Import zastąpi całą obecną listę pojazdów. Wcześniej możesz ją wyeksportować.', 'Wybierz plik')) $('#pojIn').click();
+});
+$('#pojIn').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const data = JSON.parse(rd.result); const l = parseVehicleFile(data);
+      if(!l.length) throw new Error('empty');
+      vehList = l; vehCustom = true; vehSource = f.name;
+      try { localStorage.setItem(POJ_KEY, JSON.stringify({name:f.name, data})); } catch(err) {}
+      buildPojSelect(); toast(`Wczytano ${l.length} pojazdów z pliku „${f.name}”.`);
+    } catch(err){ toast('Nie rozpoznano pliku. Obsługiwany jest wykaz „pojazdy-kd-v1” oraz eksport z karty próby hamulca.'); }
+    e.target.value = '';
+  };
+  rd.readAsText(f);
+});
+$('#btnPojReset').addEventListener('click', () => {
+  vehList = DEFAULT_VEH; vehCustom = false; vehSource = ''; try { localStorage.removeItem(POJ_KEY); } catch(e) {}
+  buildPojSelect(); toast('Przywrócono domyślną listę pojazdów.');
+});
+/* ---------------- confirmation dialog ---------------- */
+function askConfirm(title, msg, okLabel, danger){
+  return new Promise(res => {
+    const d = $('#dlgAsk'), yes = $('#askYes'), no = $('#askNo');
+    $('#askTitle').textContent = title; $('#askMsg').textContent = msg; yes.textContent = okLabel || 'OK';
+    yes.style.background = danger ? 'var(--danger)' : ''; yes.style.borderColor = danger ? 'var(--danger)' : ''; yes.style.color = danger ? '#fff' : '';
+    const done = v => { yes.onclick = no.onclick = d.oncancel = null; if(d.open) d.close(); res(v); };
+    yes.onclick = () => done(true); no.onclick = () => done(false); d.oncancel = e => { e.preventDefault(); done(false); };
+    d.showModal(); no.focus();
+  });
+}
+
+/* ---------------- admin panel (vehicle database) ----------------
+   Note: the password only hides the panel from casual use; a client-side check is not real security. */
+const ADM_HASH = '6af227139853a1ce3a7d5a1e298e4a73328bae42bbe372ea31ccbd061da6670b';
+const ADM_FLAG = 'wykaz-r7-adm';
+let admEditIdx = null; /* index in vehList, -1 = new vehicle */
+async function sha256hex(t){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+const admUnlocked = () => { try { return sessionStorage.getItem(ADM_FLAG)==='1'; } catch(e){ return false; } };
+$('#btnAdm').addEventListener('click', () => {
+  if(admUnlocked()){ openAdm(); return; }
+  $('#pwIn').value = ''; $('#pwErr').textContent = ''; $('#dlgPw').showModal(); $('#pwIn').focus();
+});
+$('#pwCancel').addEventListener('click', () => $('#dlgPw').close());
+$('#pwForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  let ok = false;
+  try { ok = (await sha256hex($('#pwIn').value)) === ADM_HASH; } catch(err){ $('#pwErr').textContent = 'Ta przeglądarka nie obsługuje weryfikacji hasła.'; return; }
+  if(!ok){ $('#pwErr').textContent = 'Nieprawidłowe hasło.'; $('#pwIn').select(); return; }
+  try { sessionStorage.setItem(ADM_FLAG,'1'); } catch(err) {}
+  $('#dlgPw').close(); openAdm();
+});
+function openAdm(){ admEditIdx = null; $('#vformBox').innerHTML = ''; admRender(); updListInfo(); updEsemInfo(); if(!$('#dlgAdm').open) $('#dlgAdm').showModal(); }
+$('#admClose').addEventListener('click', () => $('#dlgAdm').close());
+$('#admLock').addEventListener('click', () => { try { sessionStorage.removeItem(ADM_FLAG); } catch(e) {} $('#dlgAdm').close(); toast('Panel administratora zablokowany.'); });
+$('#admSearch').addEventListener('input', () => admRender());
+const nOut = x => x==null ? '' : fmtN(x);
+function admRender(){
+  const q = normKey($('#admSearch').value);
+  const qd = /^\d{3,}$/.test(q) ? q : null; /* digits only: search in inventory numbers too */
+  const rows = vehList.map((v,i)=>({v,i})).filter(({v}) => !q || normKey(v.name).includes(q) || (qd && v.nums.some(n=>n.replace(/\D/g,'').includes(qd))));
+  $('#admTable').innerHTML = `<thead><tr><th>Pojazd</th><th>Typ (rubr. 5)</th><th>Człony</th><th>Dł. [m]</th><th>M. ład. [t]</th><th>M. wł. [t]</th><th>M. ham. [t]</th><th>„S” masa / ham.</th><th></th></tr></thead><tbody>` +
+    (rows.length ? rows.map(({v,i}) => {
+      const bad = v.nums.filter(n => { const st = evnStatus(n); return st && st.cls==='bad'; }).length;
+      const s = findEsem(v);
+      return `<tr${i===admEditIdx?' class="edit"':''}><td><b>${esc(v.name)}</b></td><td>${esc(typOf(v))}</td>`+
+        `<td>${v.nums.length}${bad?` <span style="color:var(--danger)" title="Błędna cyfra kontrolna">(✕${bad})</span>`:''}</td>`+
+        `<td class="n">${nOut(v.dl)}</td><td class="n">${nOut(v.mLad)}</td><td class="n">${nOut(v.mWl)}</td><td class="n">${nOut(v.mHam)}</td>`+
+        `<td class="n">${s ? (nOut(s.rec.pusty ?? s.rec.og)||'–')+' / '+(nOut(s.rec.ham)||'–') : '–'}</td>`+
+        `<td style="white-space:nowrap;text-align:right"><button class="btn small" type="button" data-aedit="${i}">Edytuj</button> <button class="ib del" type="button" data-adel="${i}" title="Usuń pojazd" aria-label="Usuń ${esc(v.name)}">✕</button></td></tr>`;
+    }).join('') : `<tr><td colspan="9" style="color:var(--muted);padding:14px 8px">Brak pojazdów pasujących do wyszukiwania.</td></tr>`) + '</tbody>';
+}
+function vehToExport(v){
+  const u = (x, s) => x==null ? '' : String(Math.round(x*100)/100) + s;
+  const o = { pojazd:v.name, numeryInwentarzowe:[...v.nums], dlugosc:u(v.dl,'m'), masaOgolna:u(v.og,'t'), masaLadunku:u(v.mLad,'t'),
+    masaWlasna:u(v.mWlRaw,'t'), masaHamujaca:u(v.mHam,'t') };
+  if(v.typ) o.typ = v.typ;
+  if(v.esOg!=null) o.esemMasaOgolna = v.esOg;
+  if(v.esHam!=null) o.esemMasaHamujaca = v.esHam;
+  return o;
+}
+function exportObj(){
+  const d = new Date(), p2 = n => String(n).padStart(2,'0');
+  return { format:'pojazdy-kd-v1', nazwa:'Pojazdy KD – wykaz pojazdów', dataEksportu:`${p2(d.getDate())}.${p2(d.getMonth()+1)}.${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`,
+    liczbaPojazdow: vehList.length, pojazdy: vehList.map(vehToExport) };
+}
+function saveVehList(label){
+  vehCustom = true; vehSource = label || 'edytowana w panelu administratora';
+  try { localStorage.setItem(POJ_KEY, JSON.stringify({name:vehSource, data:exportObj()})); } catch(e) {}
+  buildPojSelect();
+}
+$('#admExport').addEventListener('click', async () => {
+  const r = await saveFile(`pojazdy-kd-${today()}.json`, new Blob([JSON.stringify(exportObj(), null, 2)], {type:'application/json'}));
+  if(r==='saved') toast(`Wyeksportowano ${vehList.length} pojazdów.`);
+});
+$('#admAdd').addEventListener('click', () => admForm(-1));
+$('#admTable').addEventListener('click', async e => {
+  const ed = e.target.closest('[data-aedit]'), del = e.target.closest('[data-adel]');
+  if(ed) admForm(+ed.dataset.aedit);
+  if(del){ const i = +del.dataset.adel, v = vehList[i];
+    if(!await askConfirm('Usuń pojazd', `Usunąć pojazd ${v.name} z listy pojazdów?`, 'Usuń', true)) return;
+    vehList = vehList.filter((_,k)=>k!==i); admEditIdx = null; $('#vformBox').innerHTML = '';
+    saveVehList(); toast(`Usunięto pojazd ${v.name}.`); }
+});
+function admForm(i){
+  admEditIdx = i; const v = i>=0 ? vehList[i] : null;
+  const f = (id, lbl, val, extra='') => `<label class="f">${lbl}<input class="inp" id="${id}" value="${esc(val ?? '')}" ${extra}></label>`;
+  $('#vformBox').innerHTML = `<form class="vform" id="vform" novalidate>
+    <h3>${v ? 'Edycja pojazdu '+esc(v.name) : 'Nowy pojazd'}</h3>
+    <div class="grid">
+      ${f('vfName','Nazwa pojazdu *', v&&v.name, 'placeholder="np. SA134-008" autocomplete="off"')}
+      ${f('vfTyp','Typ (seria) – rubryka 5', v&&v.typ, `placeholder="${v?esc(typOf({...v,typ:''})):'puste = z tabeli typów'}"`)}
+      ${f('vfDl','Długość [m] *', v&&nOut(v.dl), 'inputmode="decimal"')}
+      ${f('vfOg','Masa ogólna [t]', v&&nOut(v.og), 'inputmode="decimal"')}
+      ${f('vfLad','Masa ładunku [t] *', v&&nOut(v.mLad), 'inputmode="decimal"')}
+      ${f('vfWl','Masa własna [t]', v&&nOut(v.mWlRaw), 'inputmode="decimal" placeholder="puste = ogólna − ładunek"')}
+      ${f('vfHam','Masa hamująca [t] *', v&&nOut(v.mHam), 'inputmode="decimal"')}
+      ${f('vfEsOg','„S”: masa ogólna próżnego składu [t]', v&&nOut(v.esOg), 'inputmode="decimal" placeholder="puste = z tabeli „S”"')}
+      ${f('vfEsHam','„S”: masa hamująca [t]', v&&nOut(v.esHam), 'inputmode="decimal" placeholder="puste = z tabeli „S”"')}
+      <label class="f wide">Numery inwentarzowe * (każdy w osobnej linii, w kolejności od kabiny 1)
+        <textarea class="inp" id="vfNums" spellcheck="false">${esc(v ? v.nums.join('\n') : '')}</textarea>
+        <span class="sub" id="vfNumsInfo"></span></label>
+    </div>
+    <div class="pwerr" id="vfErr" aria-live="polite"></div>
+    <div class="row"><button class="btn primary" type="submit">${v ? 'Zapisz zmiany' : 'Dodaj pojazd'}</button>
+      <button class="btn" type="button" id="vfCancel">Anuluj</button></div>
+  </form>`;
+  const numsInfo = () => {
+    const ns = $('#vfNums').value.split(/[\n,;]+/).map(x=>x.trim()).filter(Boolean);
+    const bad = ns.filter(n => { const st = evnStatus(n); return st && st.cls==='bad'; });
+    $('#vfNumsInfo').textContent = `${ns.length} ${ns.length===1?'numer':'numerów'}` + (bad.length ? ` – błędna cyfra kontrolna: ${bad.join(', ')}` : '');
+    $('#vfNumsInfo').style.color = bad.length ? 'var(--danger)' : '';
+  };
+  $('#vfNums').addEventListener('input', numsInfo); numsInfo();
+  $('#vfCancel').addEventListener('click', () => { admEditIdx = null; $('#vformBox').innerHTML = ''; admRender(); });
+  $('#vform').addEventListener('submit', e => { e.preventDefault(); admSave(); });
+  admRender(); $('#vfName').focus();
+}
+function admSave(){
+  const val = id => $('#'+id).value.trim();
+  const name = val('vfName'), nums = $('#vfNums').value.split(/[\n,;]+/).map(x=>x.trim()).filter(Boolean);
+  const errs = [];
+  if(!name) errs.push('podaj nazwę pojazdu');
+  if(name && vehList.some((v,k)=>k!==admEditIdx && normKey(v.name)===normKey(name))) errs.push('pojazd o tej nazwie już jest na liście');
+  if(!nums.length) errs.push('wpisz co najmniej jeden numer inwentarzowy');
+  const numF = [['vfDl','długość'],['vfLad','masa ładunku'],['vfHam','masa hamująca']];
+  for(const [id,l] of numF) if(unitNum(val(id))==null) errs.push(`uzupełnij pole „${l}”`);
+  for(const id of ['vfOg','vfWl','vfEsOg','vfEsHam']) if(val(id) && unitNum(val(id))==null) errs.push('pola mas przyjmują tylko liczby');
+  if(errs.length){ $('#vfErr').textContent = 'Nie zapisano: ' + [...new Set(errs)].join(', ') + '.'; return; }
+  const v = mkVeh(name, nums, val('vfDl'), val('vfOg'), val('vfLad'), val('vfWl'), val('vfHam'),
+    {typ: val('vfTyp'), esemMasaOgolna: val('vfEsOg'), esemMasaHamujaca: val('vfEsHam')});
+  const oldName = admEditIdx>=0 ? vehList[admEditIdx].name : null;
+  if(admEditIdx>=0) vehList = vehList.map((x,k)=>k===admEditIdx ? v : x); else vehList = [...vehList, v];
+  if(oldName && oldName!==name){ if(state.rodzajPoj===oldName) state.rodzajPoj = name; if(state.rodzajPoj2===oldName) state.rodzajPoj2 = name; }
+  admEditIdx = null; $('#vformBox').innerHTML = '';
+  saveVehList();
+  if([state.rodzajPoj, state.rodzajPoj2].includes(name)) fillFromVehicles();
+  changed();
+  toast(oldName ? `Zapisano zmiany pojazdu ${name}.` : `Dodano pojazd ${name}.`);
+}
+
+const KIER_KEYS = ['kierownik','kJedn','kZe','kDo'];
+function syncKier(){
+  $('#brakKier').checked = state.brakKier;
+  $('#fsKier').classList.toggle('off', state.brakKier);
+  KIER_KEYS.forEach(k => { const i = document.querySelector(`[data-h="${k}"]`); if(i) i.disabled = state.brakKier; });
+  document.querySelector('[data-copyroute="k"]').disabled = state.brakKier;
+}
+$('#brakKier').addEventListener('change', e => { state.brakKier = e.target.checked; syncKier(); changed(); });
+function fillHeadInputs(){
+  $('#rodzDop').value = state.rodzajDop; buildPojSelect(); syncCab(); updEsemInfo(); syncKier();
+  document.querySelectorAll('[data-h]').forEach(i => { i.value = state.head[i.dataset.h] || ''; });
+}
+document.querySelectorAll('[data-h]').forEach(i => i.addEventListener('input', () => {
+  const k = i.dataset.h; state.head[k] = i.value;
+  const lk = k==='zeStacji' ? 'nad' : (k==='doStacji' ? 'prz' : null);
+  if(lk && state.lLink && state.lLink[lk]){
+    const ss = swapStarts();
+    const starts = ss ? [lk==='nad' ? ss.s1 : ss.s2] : (state.lGroups.length ? groupStarts().map(g=>g[0]) : (state.L[0].nrInw ? [0] : []));
+    if(starts.length){ starts.forEach(si => { state.L[si][lk] = i.value; }); buildEditor(); }
+  }
+  changed();
+}));
+document.querySelectorAll('[data-copyroute]').forEach(b => b.addEventListener('click', () => {
+  const p = b.dataset.copyroute;
+  state.head[p+'Ze'] = state.head.zeStacji; state.head[p+'Do'] = state.head.doStacji;
+  fillHeadInputs(); changed();
+}));
+
+/* ---------------- tab 4: columns 2–6 ---------------- */
+let curCol = 0; // index into state.cols (0 => rubryka 2)
+const COL_NAMES = ['2 – stacja pośrednia','3 – stacja pośrednia','4 – stacja pośrednia','5 – stacja pośrednia','6 – stacja końcowa'];
+function buildColSeg(){
+  $('#colSeg').innerHTML = COL_NAMES.map((n,i)=>`<button type="button" data-col="${i}" aria-pressed="${i===curCol}">Rubryka ${i+2}${headFilled(state.cols[i])?'<span class="dot" aria-label="wypełniona"></span>':''}</button>`).join('');
+}
+function buildColGrid(){
+  $('#colTitle').textContent = 'Rubryka ' + COL_NAMES[curCol];
+  $('#colBrakKier').checked = !!state.cols[curCol].brakKier;
+  const c = state.cols[curCol];
+  $('#colGrid').innerHTML = HEAD.map(([k,l])=>{
+    const lab = l.charAt(0).toUpperCase()+l.slice(1);
+    const ctx = /^k/.test(k)&&k!=='kierownik' ? ' (kier.)' : (/^m/.test(k)&&k!=='maszynista' ? ' (masz.)' : '');
+    const typ = k==='data' ? 'type="date"' : '';
+    const list = /Ze|Do|Stacji/.test(k) ? 'list="dlStacje"' : (/Jedn/.test(k)?'list="dlJedn"':'');
+    const dis = c.brakKier && KIER_KEYS.includes(k) ? 'disabled' : '';
+    return `<label class="f">${esc(lab+ctx)}<input class="inp" ${typ} ${list} ${dis} data-c="${k}" value="${esc(c[k])}"></label>`;
+  }).join('');
+}
+$('#colSeg').addEventListener('click', e => { const b = e.target.closest('[data-col]'); if(!b) return; curCol = +b.dataset.col; buildColSeg(); buildColGrid(); });
+$('#colGrid').addEventListener('input', e => { const k = e.target.dataset.c; if(!k) return; state.cols[curCol][k] = e.target.value; changed(); });
+$('#colGrid').addEventListener('change', () => buildColSeg());
+$('#btnColCopy').addEventListener('click', () => { state.cols[curCol] = {...state.head}; if(state.brakKier) state.cols[curCol].brakKier = true; buildColGrid(); buildColSeg(); changed(); });
+$('#colBrakKier').addEventListener('change', e => { state.cols[curCol].brakKier = e.target.checked; buildColGrid(); buildColSeg(); changed(); });
+$('#btnColClear').addEventListener('click', () => { state.cols[curCol] = emptyHead(); buildColGrid(); buildColSeg(); changed(); });
+
+/* ---------------- tab 2: vehicles ---------------- */
+function evnBtn(v){
+  const s = evnStatus(v);
+  if(!s) return `<span class="evn" data-evn></span>`;
+  return s.cls==='add'
+    ? `<button type="button" class="evn add" data-evn data-act="evn" title="${esc(s.title)}">${esc(s.txt)}</button>`
+    : `<span class="evn ${s.cls}" data-evn title="${esc(s.title)}">${esc(s.txt)}</span>`;
+}
+const mobExpanded = new Set(); /* phone view: empty rows are collapsed to the number field until expanded */
+function edRow(sec, i, r){
+  const lp = sec==='W' ? (i+1)+'.' : sec+(i+1);
+  const acts = sec==='W'
+    ? `<button class="ib" data-act="up" title="Przesuń w górę" aria-label="Przesuń w górę">↑</button>`+
+      `<button class="ib" data-act="down" title="Przesuń w dół" aria-label="Przesuń w dół">↓</button>`+
+      `<button class="ib" data-act="dup" title="Duplikuj wiersz" aria-label="Duplikuj wiersz">⧉</button>`+
+      `<button class="ib del" data-act="del" title="Usuń wagon" aria-label="Usuń wagon">✕</button>`
+    : `<button class="ib" data-act="dup" title="Kopiuj do następnego wiersza" aria-label="Kopiuj do następnego wiersza">⧉</button>`+
+      `<button class="ib del" data-act="clr" title="Wyczyść wiersz" aria-label="Wyczyść wiersz">✕</button>`;
+  let gcls = '';
+  if(sec==='L'){ groupStarts().forEach(([st,n],g)=>{ if(i>=st && i<st+n) gcls = ' class="g'+((state.lGroupVeh||[])[g]||g+1)+'"'; }); }
+  const hasParams = FIELDS.some(f => f.k!=='nrInw' && String(r[f.k]).trim()!=='');
+  const key = sec+i, collapsed = !hasParams && !mobExpanded.has(key);
+  const cls = [gcls ? gcls.replace(/^ class="|"$/g,'') : '', collapsed ? 'collapsed' : ''].filter(Boolean).join(' ');
+  const WIDE = new Set(['nrInw','uwagi']);
+  return `<tr data-sec="${sec}" data-i="${i}"${cls?` class="${cls}"`:''}><td class="lp">${lp}</td>`+
+    FIELDS.map(f=>{
+      const inp = `<input data-f="${f.k}" ${f.n?'class="n" inputmode="decimal"':''} ${f.k==='cyfr'?'inputmode="numeric" maxlength="4"':''} ${f.list?`list="${f.list}"`:''} value="${esc(r[f.k])}" aria-label="${esc(lp+' '+f.t)}">`;
+      return f.k==='nrInw' ? `<td class="wide wide-nr" data-label="${esc(f.t)}"><div class="nrcell">${inp}${evnBtn(r.nrInw)}</div></td>`
+        : `<td data-label="${esc(f.t)}"${WIDE.has(f.k)?' class="wide"':''}>${inp}</td>`;
+    }).join('')+`<td class="act"><button class="ib mexp" type="button" data-act="exp" aria-expanded="${!collapsed}">${collapsed?'Więcej ▾':'Mniej ▴'}</button>${acts}</td></tr>`;
+}
+function buildEditor(){
+  const cols = `<colgroup><col style="width:52px">${FIELDS.map(f=>`<col style="width:${f.w}px">`).join('')}<col style="width:130px"></colgroup>`;
+  const head = `<thead><tr><th class="lp">Lp.</th>${FIELDS.map(f=>`<th>${esc(f.t)}</th>`).join('')}<th></th></tr></thead>`;
+  const sec = t => `<tr class="sec"><td colspan="${FIELDS.length+2}"><span class="lp-sticky">${esc(t)}</span></td></tr>`;
+  $('#edTable').innerHTML = cols + head + '<tbody>' +
+    sec(state.L.length>6 ? `L1–L${state.L.length} · pojazdy trakcyjne` : 'L1–L6 · pojazdy trakcyjne') + state.L.map((r,i)=>edRow('L',i,r)).join('') +
+    sec('Wagony') + state.W.map((r,i)=>edRow('W',i,r)).join('') + '</tbody>';
+}
+$('#edTable').addEventListener('input', e => {
+  const tr = e.target.closest('tr[data-sec]'); const f = e.target.dataset.f;
+  if(!tr || !f) return;
+  state[tr.dataset.sec][+tr.dataset.i][f] = e.target.value;
+  if(tr.classList.contains('collapsed') && e.target.value && f!=='nrInw'){ mobExpanded.add(tr.dataset.sec+tr.dataset.i); tr.classList.remove('collapsed');
+    const mb = tr.querySelector('.mexp'); if(mb){ mb.textContent = 'Mniej ▴'; mb.setAttribute('aria-expanded','true'); } }
+  if(tr.dataset.sec==='L' && (f==='nad'||f==='prz') && state.lLink){
+    const ss = swapStarts();
+    const starts = ss ? [f==='nad' ? ss.s1 : ss.s2] : (state.lGroups.length ? groupStarts().map(g=>g[0]) : [0]);
+    if(starts.includes(+tr.dataset.i)) state.lLink[f] = false;
+  }
+  { const ss = swapStarts(); if(ss && tr.dataset.sec==='L' && (f==='nad'||f==='prz')){ const i = +tr.dataset.i;
+      if(i===ss.s1) state.sw[f==='nad'?'n1':'p1'] = e.target.value; if(i===ss.s2) state.sw[f==='nad'?'n2':'p2'] = e.target.value; } }
+  if(f==='nrInw'){ const old = tr.querySelector('[data-evn]'); const tmp = document.createElement('div'); tmp.innerHTML = evnBtn(e.target.value); old.replaceWith(tmp.firstChild); }
+  changed();
+});
+$('#edTable').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if(!b) return;
+  const tr = b.closest('tr[data-sec]'); const sec = tr.dataset.sec, i = +tr.dataset.i, arr = state[sec];
+  const a = b.dataset.act; let focusIdx = null;
+  if(a==='exp'){
+    const key = sec+i, open = tr.classList.contains('collapsed');
+    if(open) mobExpanded.add(key); else mobExpanded.delete(key);
+    tr.classList.toggle('collapsed', !open);
+    b.textContent = open ? 'Mniej ▴' : 'Więcej ▾'; b.setAttribute('aria-expanded', String(open));
+    return;
+  }
+  if(a==='evn'){
+    const d = arr[i].nrInw.replace(/\D/g,''); arr[i].nrInw = d + '-' + evnCheck(d);
+    buildEditor(); changed(); const inp = $(`#edTable tr[data-sec="${sec}"][data-i="${i}"] input[data-f="nrInw"]`); inp && inp.focus(); return;
+  }
+  if(a==='clr'){ arr[i] = emptyRow(); }
+  else if(a==='del'){ arr.splice(i,1); if(!arr.length) arr.push(emptyRow()); }
+  else if(a==='dup'){
+    if(sec==='W'){ arr.splice(i+1,0,{...arr[i]}); focusIdx=i+1; }
+    else if(i<arr.length-1){ arr[i+1] = {...arr[i], nrInw:''}; focusIdx=i+1; }
+  }
+  else if(a==='up' && i>0){ [arr[i-1],arr[i]]=[arr[i],arr[i-1]]; focusIdx=i-1; }
+  else if(a==='down' && i<arr.length-1){ [arr[i+1],arr[i]]=[arr[i],arr[i+1]]; focusIdx=i+1; }
+  buildEditor(); changed();
+  if(focusIdx!=null){ const el = a==='dup'&&sec!=='W'
+      ? $(`#edTable tr[data-sec="${sec}"][data-i="${focusIdx}"] input[data-f="nrInw"]`)
+      : $(`#edTable tr[data-sec="${sec}"][data-i="${focusIdx}"] [data-act="${a}"]`); el && el.focus(); }
+});
+function addWagons(n){
+  const last = state.W[state.W.length-1];
+  for(let k=0;k<n;k++){ const r = emptyRow();
+    if(last){ r.nad = last.nad; r.prz = last.prz; r.panstwo = last.panstwo; r.eksp = last.eksp; r.cyfr = last.cyfr; }
+    state.W.push(r); }
+  buildEditor(); changed();
+  const inp = $(`#edTable tr[data-sec="W"][data-i="${state.W.length-n}"] input[data-f="nrInw"]`); inp && inp.focus();
+}
+$('#btnAddW').addEventListener('click', ()=>addWagons(1));
+$('#btnAddW5').addEventListener('click', ()=>addWagons(5));
+
+function renderSummary(){
+  const t = totals(), brutto = t.mLad + t.mWl;
+  $('#sum').innerHTML =
+    `<div><dt>Człony</dt><dd>${t.n}</dd></div>`+
+    `<div><dt>Długość (kol. 7)</dt><dd>${fmtN(t.dl)} m</dd></div>`+
+    `<div><dt>Masa ładunku (8)</dt><dd>${fmtN(t.mLad)} t</dd></div>`+
+    `<div><dt>Masa własna (9)</dt><dd>${fmtN(t.mWl)} t</dd></div>`+
+    `<div><dt>Masa ham. (10)</dt><dd>${fmtN(t.mHam)} t</dd></div>`+
+    `<div><dt>% masy ham.</dt><dd>${brutto>0?Math.round(t.mHam/brutto*100)+' %':'–'}</dd></div>`;
+}
+
+/* ---------------- tab 3: brake tests ---------------- */
+function hText(h){
+  const p = [];
+  if(h.stacja.trim()) p.push(h.stacja.trim());
+  if(h.proba.trim()) p.push(`pr. ham. „${h.proba.trim()}”`);
+  if(h.wykonal.trim()) p.push('wyk. ' + h.wykonal.trim());
+  return p.join(' ');
+}
+const hHas = h => !!(h.stacja.trim() || h.proba.trim() || h.wykonal.trim());
+function hVals(h){
+  if(!hHas(h) && !(h.dl||h.mLad||h.mWl||h.mHam)) return null;
+  const zf = x => Math.abs(x) < 1e-9 ? '-' : fmtN(x);
+  if(h.auto){ const t = totals(); return t.n ? {dl:zf(t.dl), mLad:zf(t.mLad), mWl:zf(t.mWl), mHam:zf(t.mHam)} : null; }
+  return {dl:h.dl, mLad:h.mLad, mWl:h.mWl, mHam:h.mHam};
+}
+function buildH(){
+  $('#hList').innerHTML = state.H.map((h,i)=>`
+  <div class="hcard" data-hi="${i}">
+    <h3>H${i+1} <span class="prevtxt" data-prev>${esc(hText(h))}</span>
+      <button class="ib del" type="button" data-hclr title="Wyczyść wiersz" aria-label="Wyczyść wiersz H${i+1}">✕</button></h3>
+    <div class="grid">
+      <label class="f">Stacja<input class="inp" data-hk="stacja" list="dlStacje" value="${esc(h.stacja)}"></label>
+      <label class="f">Rodzaj próby<input class="inp" data-hk="proba" list="dlProba" value="${esc(h.proba)}" placeholder="np. S"></label>
+      <label class="f" style="grid-column:span 2">Wykonał (stanowisko, nazwisko)<input class="inp" data-hk="wykonal" list="dlOsoby" value="${esc(h.wykonal)}" placeholder="np. rew. taboru P. Kowalski"></label>
+    </div>
+    <div class="grid">
+      <label class="chk wide" style="grid-column:1/-1"><input type="checkbox" data-hk="auto" ${h.auto?'checked':''}> Przepisz sumy składu do rubryk 7–10</label>
+      ${[['dl','Długość [m]'],['mLad','Masa ładunku [t]'],['mWl','Masa własna [t]'],['mHam','Masa hamująca [t]']].map(([k,l])=>
+        `<label class="f">${l}<input class="inp" data-hk="${k}" inputmode="decimal" value="${esc(h[k])}" ${h.auto?'disabled':''}></label>`).join('')}
+    </div>
+  </div>`).join('');
+}
+$('#hList').addEventListener('input', e => {
+  const card = e.target.closest('[data-hi]'); const k = e.target.dataset.hk; if(!card||!k) return;
+  const h = state.H[+card.dataset.hi];
+  if(k==='auto'){ h.auto = e.target.checked;
+    if(!h.auto){ const t = totals(); if(!h.dl&&!h.mLad&&!h.mWl&&!h.mHam&&t.n){ h.dl=fmtN(t.dl); h.mLad=fmtN(t.mLad); h.mWl=fmtN(t.mWl); h.mHam=fmtN(t.mHam);} }
+    buildH(); }
+  else { h[k] = e.target.value; card.querySelector('[data-prev]').textContent = hText(h); }
+  changed();
+});
+$('#hList').addEventListener('click', e => {
+  const b = e.target.closest('[data-hclr]'); if(!b) return;
+  state.H[+b.closest('[data-hi]').dataset.hi] = emptyH(); buildH(); changed();
+});
+
+/* ---------------- sheet rendering ---------------- */
+const VT_COLS = [12,50,14,18,18,16,14,13,13,14,26,26,14,29]; // mm, sum = 277
+
+function headerBlock(){
+  const h = state.head;
+  let html = `<table class="hb"><colgroup><col style="width:49mm"><col style="width:45mm"><col><col><col><col><col></colgroup>`+
+    `<tr class="h0"><td rowspan="3" class="rodz">${esc(rodzajText())}</td>`+
+    `<td colspan="5" class="c">Potwierdzenie odbioru pojazdów zgodnie z wykazem na:</td><td rowspan="2" class="c">stacji końcowej</td></tr>`+
+    `<tr class="h0"><td class="c">stacji początkowej</td><td colspan="4" class="c">stacjach pośrednich</td></tr>`+
+    `<tr class="h0 nums"><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td></tr>`;
+  const THICK = new Set(['nrPociagu','kierownik','maszynista','odprawiajacy']);
+  const Z_SVG = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 L100 0 L0 100 L100 100" fill="none" stroke="#000" stroke-width="1.3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>';
+  /* "Z" is drawn separately in every column (rubric) where the train has no conductor */
+  let k = '';
+  const cell = (col, noKier) => {
+    if(noKier && KIER_KEYS.includes(k)) return k==='kierownik' ? `<td class="val zc"><div class="zmark">${Z_SVG}</div></td>` : '<td class="val"></td>';
+    return `<td class="val">${esc(k==='data' ? fmtDate(col[k]) : col[k])}</td>`;
+  };
+  HEAD.forEach(([kk,l]) => { k = kk;
+    html += `<tr${THICK.has(k)?' class="thk"':''}><td class="lb">${esc(l)}</td>` + cell(h, state.brakKier);
+    for(let c=0;c<5;c++) html += cell(state.cols[c], !!state.cols[c].brakKier);
+    html += '</tr>';
+  });
+  return html + '</table>';
+}
+function vtHead(){
+  return `<colgroup>${VT_COLS.map(w=>`<col style="width:${w}mm">`).join('')}</colgroup><thead>`+
+  `<tr class="r1"><th rowspan="3">Lp.</th><th colspan="5">Identyfikator pojazdu kolejowego*):</th>`+
+  `<th rowspan="3">Długość pojazdu kolejowego [m]</th><th rowspan="3">Masa ładunku [t]</th><th rowspan="3">Masa własna pojazdu [t]</th>`+
+  `<th rowspan="3">Masa hamująca rzeczywista [t]</th><th colspan="2">Stacja</th><th rowspan="3">Numer węzła</th>`+
+  `<th rowspan="3">Uwagi (w tym informacje o pojazdach przewożących materiały niebezpieczne według klasyfikacji RID)</th></tr>`+
+  `<tr class="r2"><th rowspan="2">numer inwentarzowy pojazdu</th><th colspan="3">literowy:</th>`+
+  `<th rowspan="2">cyfrowy eksploatującego pojazd kolejowy</th><th rowspan="2">nadania</th><th rowspan="2">przeznaczenia</th></tr>`+
+  `<tr class="r3"><th>państwa rejestracji</th><th>eksploatującego pojazd kolejowy</th><th>typu (serii)</th></tr>`+
+  `<tr class="nums">${VT_COLS.map((_,i)=>`<td>${i+1}</td>`).join('')}</tr></thead>`;
+}
+function boxesNr(v){
+  const raw = String(v||'');
+  const d = raw.replace(/\D/g,'');
+  if(/[^\d\s-]/.test(raw) || d.length > 12) return null;
+  const cells = [];
+  for(let i=0;i<11;i++) cells.push(`<span>${d[i]||''}</span>`);
+  cells.push(`<span class="dash">${d.length>11?'-':''}</span>`);
+  cells.push(`<span>${d[11]||''}</span>`);
+  return `<div class="bx">${cells.join('')}</div>`;
+}
+function boxesCyf(v){
+  const raw = String(v||'').trim();
+  if(!/^\d{0,4}$/.test(raw)) return null;
+  return `<div class="bx">${[0,1,2,3].map(i=>`<span>${raw[i]||''}</span>`).join('')}</div>`;
+}
+function vtRow(item){
+  const lp = `<td class="lp">${esc(item.lp)}</td>`;
+  if(item.h){
+    const h = item.h, vals = hVals(h) || {dl:'',mLad:'',mWl:'',mHam:''};
+    return `<tr class="${item.cls||''}">${lp}<td colspan="5" class="htx">${esc(hText(h))}</td>`+
+      `<td class="nr">${esc(vals.dl)}</td><td class="nr">${esc(vals.mLad)}</td><td class="nr">${esc(vals.mWl)}</td><td class="nr">${esc(vals.mHam)}</td>`+
+      `<td></td><td></td><td></td><td class="uw">${esc(item.uw||'')}</td></tr>`;
+  }
+  const r = item.r || emptyRow();
+  const c = (k, cls='') => `<td class="${cls}">${esc(r[k])}</td>`;
+  const nrB = boxesNr(r.nrInw), cyB = boxesCyf(r.cyfr);
+  return `<tr class="${item.cls||''}">${lp}`+
+    (nrB ? `<td class="bxc">${nrB}</td>` : c('nrInw'))+
+    (item.brace ? `<td class="cn brc"><div class="brace" style="height:${(item.brace*4.5-1.2).toFixed(2)}mm">${BRACE_SVG}</div>${esc(r.panstwo)}</td>` : c('panstwo','cn'))+
+    `${c('eksp','cn')}${c('typ','cn')}`+
+    (cyB ? `<td class="bxc">${cyB}</td>` : c('cyfr','cn'))+
+    `${c('dl','nr')}${c('mLad','nr')}${c('mWl','nr')}${c('mHam','nr')}${c('nad')}${c('prz')}${c('wezel','cn')}<td class="uw">${esc(item.uw||'')}</td></tr>`;
+}
+const BRACE_SVG = '<svg viewBox="0 0 10 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 0 Q5 0 5 8 L5 42 Q5 50 9.5 50 Q5 50 5 58 L5 92 Q5 100 1 100" fill="none" stroke="#000" stroke-width="1.1" vector-effect="non-scaling-stroke"/></svg>';
+function buildRows(){
+  const nL = state.L.length;
+  const total = nL + 6 + Math.max(state.W.length, 1);
+  const pad = total <= P1_ROWS ? P1_ROWS : P1_ROWS + PN_ROWS * Math.ceil((total - P1_ROWS)/PN_ROWS);
+  const wCount = pad - nL - 6;
+  const rows = [];
+  state.L.forEach((r,i)=>rows.push({lp:'L'+(i+1), r}));
+  groupStarts().forEach(([st,n])=>{ if(n>=2) rows[st].brace = n; });
+  for(let i=0;i<wCount;i++){
+    rows.push({lp:(i+1)+'.', r: state.W[i], cls: i===0?'first-w':''});
+  }
+  state.H.forEach((h,i)=>rows.push({lp:'H'+(i+1), h, cls: i===0?'first-h':''}));
+  flowRemarks(rows);
+  return rows;
+}
+/* column 14: wrap each remark to the cell width; lines that don't fit go to the next rows below
+   (only into rows without their own remark; if one is in the way, the rest is appended to the last free cell) */
+const UW_MAX_PX = (29 - 2) * 96 / 25.4 - 1.5;
+let measureCtx = null;
+function textW(t){
+  if(!measureCtx){ measureCtx = document.createElement('canvas').getContext('2d'); }
+  measureCtx.font = "6pt Arimo, Arial, 'Liberation Sans', sans-serif";
+  return measureCtx.measureText(t).width;
+}
+function wrapText(text){
+  const words = String(text).trim().split(/\s+/).filter(Boolean), lines = []; let cur = '';
+  for(let w of words){
+    while(textW(w) > UW_MAX_PX && w.length > 1){ /* very long word: break by characters */
+      let k = w.length; while(k>1 && textW((cur?cur+' ':'')+w.slice(0,k)) > UW_MAX_PX) k--;
+      if(k<=1 && cur){ lines.push(cur); cur=''; continue; }
+      lines.push((cur?cur+' ':'')+w.slice(0,k)); cur=''; w = w.slice(k);
+    }
+    const t = cur ? cur+' '+w : w;
+    if(textW(t) <= UW_MAX_PX) cur = t; else { if(cur) lines.push(cur); cur = w; }
+  }
+  if(cur) lines.push(cur);
+  return lines;
+}
+function flowRemarks(rows){
+  const own = rows.map(it => String((it.r && it.r.uwagi) || '').trim());
+  let pending = [], lastIdx = -1;
+  rows.forEach((it,i)=>{
+    if(own[i]){
+      if(pending.length && lastIdx>=0) rows[lastIdx].uw += ' ' + pending.join(' ');
+      const lines = wrapText(own[i]); it.uw = lines.shift() || ''; pending = lines; lastIdx = i;
+    } else if(pending.length){ it.uw = pending.shift(); lastIdx = i; }
+    else it.uw = '';
+  });
+  if(pending.length && lastIdx>=0) rows[lastIdx].uw += ' ' + pending.join(' ');
+}
+function foot(p, n){
+  return `<div class="foot"><div>*) Należy podać pełny identyfikator pojazdu kolejowego wszystkich pojazdów jadących w pociągu</div>`+
+    `<div class="zal">Załącznik nr 2 Rozporządzenia Ministra Transportu w sprawie dokumentów, które powinny znajdować się w pojeździe kolejowym. Dziennik Ustaw Nr 9</div>`+
+    `<div class="gen">Dokument wygenerowany przez aplikację. Autor: Grzegorz Rejszel (kier. poc. 186)</div>`+
+    (n>1?`<div class="pg">Strona ${p} z ${n}</div>`:'')+`</div>`;
+}
+function sheetsHTML(){
+  const rows = buildRows();
+  const pages = [rows.slice(0, P1_ROWS)];
+  for(let i=P1_ROWS;i<rows.length;i+=PN_ROWS) pages.push(rows.slice(i, i+PN_ROWS));
+  const n = pages.length, h = state.head;
+  return pages.map((pr, idx) => {
+    const title = idx===0
+      ? `<div class="title">WYKAZ POJAZDÓW KOLEJOWYCH W SKŁADZIE POCIĄGU</div>`
+      : `<div class="title">WYKAZ POJAZDÓW KOLEJOWYCH W SKŁADZIE POCIĄGU <small>(ciąg dalszy) – pociąg nr ${esc(h.nrPociagu)}, dnia ${esc(fmtDate(h.data))}</small></div>`;
+    return `<div class="sheet">${title}${idx===0?headerBlock():''}<table class="vt">${vtHead()}<tbody>${pr.map(vtRow).join('')}</tbody></table>${foot(idx+1,n)}</div>`;
+  }).join('');
+}
+
+/* ---------------- preview ---------------- */
+const scaler = $('#scaler'), desk = $('#desk');
+let pvZoom = 1; const ZOOMS = [1, 1.5, 2, 3];
+function fitWrap(){
+  const sheet = scaler.querySelector('.sheet'); if(!sheet) return;
+  const pad = window.matchMedia('(max-width:700px)').matches ? 16 : 28;
+  const w = sheet.offsetWidth, fit = Math.min(1, (desk.clientWidth - pad) / w), s = Math.min(fit * pvZoom, 1.6);
+  $('#zoomVal').textContent = pvZoom===1 ? 'Dopasuj' : Math.round(pvZoom*100)+'%';
+  $('#zoomOut').disabled = pvZoom===ZOOMS[0]; $('#zoomIn').disabled = pvZoom===ZOOMS[ZOOMS.length-1];
+  scaler.style.transform = `scale(${s})`; scaler.style.width = w+'px'; scaler.style.height = '';
+  const fullH = scaler.scrollHeight;
+  scaler.style.height = fullH+'px';
+  scaler.style.marginBottom = (fullH*s - fullH)+'px';
+  scaler.style.marginRight = (w*s - w)+'px';
+}
+function renderPreview(){
+  scaler.classList.toggle('params', state.pvMode==='params');
+  scaler.innerHTML = sheetsHTML();
+  const n = scaler.querySelectorAll('.sheet').length;
+  $('#pgInfo').textContent = (state.pvMode==='params' ? 'tylko parametry pojazdu · ' : '') + (n===1 ? '1 strona A4 poziomo' : `${n} strony A4 poziomo`);
+  fitWrap();
+}
+document.querySelectorAll('.tabpane > p.hint').forEach(h => { h.title = 'Dotknij, aby rozwinąć lub zwinąć'; h.addEventListener('click', () => h.classList.toggle('open')); });
+$('#zoomIn').addEventListener('click', () => { const i = ZOOMS.indexOf(pvZoom); if(i<ZOOMS.length-1){ pvZoom = ZOOMS[i+1]; fitWrap(); } });
+$('#zoomOut').addEventListener('click', () => { const i = ZOOMS.indexOf(pvZoom); if(i>0){ pvZoom = ZOOMS[i-1]; fitWrap(); } });
+/* phone bottom bar */
+$('#mEdit').addEventListener('click', () => document.querySelector('.panel').scrollIntoView({behavior:'smooth', block:'start'}));
+$('#mPreview').addEventListener('click', () => $('#pvHead').scrollIntoView({behavior:'smooth', block:'start'}));
+$('#mPdf').addEventListener('click', () => $('#btnPdf').click());
+if('ResizeObserver' in window) new ResizeObserver(()=>fitWrap()).observe(desk);
+else window.addEventListener('resize', fitWrap);
+
+let pvT = null;
+function changed(){
+  persist(); renderSummary(); validateSwap(); if(state.pojMode==='swap') syncSwapFields();
+  clearTimeout(pvT); pvT = setTimeout(renderPreview, 120);
+  refreshDatalists();
+}
+let dlT = null;
+function refreshDatalists(){
+  clearTimeout(dlT);
+  dlT = setTimeout(()=>{
+    const heads = [state.head, ...state.cols], rows=[...state.L,...state.W];
+    const pick = (keys) => heads.flatMap(h=>keys.map(k=>h[k]));
+    const clean = arr => new Set(arr.map(s=>String(s||'').trim()).filter(Boolean));
+    const stations = clean([...pick(['zeStacji','doStacji','kZe','kDo','mZe','mDo']), ...rows.map(r=>r.nad), ...rows.map(r=>r.prz), ...state.H.map(h=>h.stacja)]);
+    const people = clean([...pick(['kierownik','maszynista','odprawiajacy']), ...state.H.map(h=>h.wykonal)]);
+    const units = clean(pick(['kJedn','mJedn']));
+    const opt = set => [...set].sort((a,b)=>a.localeCompare(b,'pl')).map(v=>`<option value="${esc(v)}">`).join('');
+    $('#dlStacje').innerHTML = opt(stations); $('#dlOsoby').innerHTML = opt(people); $('#dlJedn').innerHTML = opt(units);
+  }, 400);
+}
+
+/* ---------------- file saving ---------------- */
+let dlPromise = null;
+function getDownloads(){
+  if(!dlPromise){
+    dlPromise = (window.claude && typeof window.claude.use === 'function')
+      ? window.claude.use('downloads').catch(()=>null) : Promise.resolve(null);
+  }
+  return dlPromise;
+}
+getDownloads();
+async function saveFile(filename, blob){
+  const dl = await getDownloads();
+  if(dl){
+    try { await dl.save({filename, data: blob}); return 'saved'; }
+    catch(e){
+      if(e && e.code==='declined') return 'declined';
+      if(e && e.code==='rate_limited') { toast('Poprzednie okno zapisu jest jeszcze otwarte.'); return 'busy'; }
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  return 'saved';
+}
+
+$('#btnPdf').addEventListener('click', async () => {
+  const btn = $('#btnPdf');
+  const sErr = validateSwap();
+  if(sErr){ toast('Nie można wygenerować PDF – popraw stacje przy wymianie pojazdu.'); return; }
+  if(!window.html2canvas || !window.jspdf){ toast('Nie udało się wczytać bibliotek PDF. Odśwież stronę.'); return; }
+  btn.disabled = true; const label = btn.textContent; btn.textContent = 'Generuję PDF…';
+  const host = document.createElement('div'); host.className = 'offscreen';
+  try {
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    host.innerHTML = sheetsHTML(); document.body.appendChild(host);
+    const sheets = [...host.querySelectorAll('.sheet')];
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a4', compress:true});
+    pdf.setProperties({title:'Wykaz pojazdów kolejowych w składzie pociągu' + (state.head.nrPociagu?(' – '+state.head.nrPociagu):'')});
+    for(let i=0;i<sheets.length;i++){
+      const canvas = await html2canvas(sheets[i], {scale:3, backgroundColor:'#ffffff', useCORS:true, logging:false,
+        windowWidth: sheets[i].scrollWidth, windowHeight: sheets[i].scrollHeight});
+      if(i>0) pdf.addPage('a4','landscape');
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210, undefined, 'FAST');
+    }
+    const res = await saveFile(fileStem()+'.pdf', pdf.output('blob'));
+    if(res==='saved') toast('PDF gotowy – ' + (sheets.length===1?'1 strona.':sheets.length+' strony.'));
+  } catch(err){
+    console.error(err); toast('Nie udało się wygenerować PDF: ' + (err && err.message ? err.message : err));
+  } finally { host.remove(); btn.disabled = false; btn.textContent = label; }
+});
+
+$('#btnNew').addEventListener('click', async () => {
+  if(!await askConfirm('Wyczyść dokument', 'Wszystkie wpisane dane – pociąg, drużyna, pojazdy, próby hamulca i rubryki 2–6 – zostaną usunięte. Tej operacji nie można cofnąć.', 'Wyczyść', true)) return;
+  const pv = state.pvMode;
+  state = freshState(); state.pvMode = pv; curCol = 0;
+  $('#fillInfo').textContent = '';
+  fillAll(); changed();
+  document.querySelector('.tab[data-tab="t1"]').click();
+  toast('Dokument wyczyszczony – możesz wpisywać dane od początku.');
+});
+
+function fillAll(){ fillHeadInputs(); buildEditor(); buildH(); buildColSeg(); buildColGrid(); }
+
+fillAll();
+(function refreshTyp(){
+  const vs = selectedVehs(); let fixed = false;
+  groupStarts().forEach(([st], g) => {
+    const x = vs[g]; if(!x) return; const r = state.L[st], want = typOf(x.v);
+    if(r && r.nrInw === (x.kab==='2' ? x.v.nums[x.v.nums.length-1] : x.v.nums[0]) && r.typ !== want && (!r.typ || r.typ === x.v.series.replace(/\s+/g,''))){ r.typ = want; fixed = true; }
+  });
+  if(fixed){ buildEditor(); persist(); }
+})();
+renderSummary(); validateSwap(); renderPreview(); refreshDatalists();
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>fitWrap());
+})();
+</script>
+</body>
+</html>

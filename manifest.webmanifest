@@ -1,0 +1,14 @@
+{
+  "name": "Wykaz pojazdów R-7",
+  "short_name": "Erka R-7",
+  "description": "Pomocnicza aplikacja do wypełniania dokumentu R-7 i generowania PDF.",
+  "lang": "pl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E6EAEE",
+  "theme_color": "#0E5A6B",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
