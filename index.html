@@ -35,7 +35,7 @@
   --field:#141C23; --accent:#4FB3C7; --accent-ink:#0B1A1F; --accent-soft:#1E3940;
   --danger:#E3787A; --ok:#6BCB8B; --desk:#0C1115;
 }
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);overflow-y:scroll;scrollbar-gutter:stable}
 *,*::before,*::after{box-sizing:inherit}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow',system-ui,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.4}
 button,input,select{font:inherit;color:inherit}
@@ -92,6 +92,14 @@ table.ed tr.g1 td.lp,table.ed tr.g2 td.lp{box-shadow:inset 4px 0 0 var(--gc)}
 .fillinfo:empty{display:none}
 .errbox{font-size:13px;margin-top:8px;color:var(--danger);border:1px solid var(--danger);border-radius:6px;padding:7px 10px;font-weight:500}
 .errbox:empty{display:none}
+.coloff{border:1px dashed var(--line);border-radius:8px;padding:18px;text-align:center}
+.coloff p{margin:0 0 12px}
+.coloff .sub{font-size:13px;color:var(--muted);margin:10px 0 0}
+#colOnBox legend{flex-wrap:wrap;row-gap:6px}
+.zmiany{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.zmiany[hidden],#btnColOn[hidden]{display:none}
+.zmtag{font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:2px 7px}
+@media (max-width:700px){.zmiany .btn{flex:1 1 100%}}
 .swapgrid{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:6px 10px;align-items:center;margin:10px 0;padding:10px 12px;border:1px dashed var(--line);border-radius:8px}
 .vcell[hidden],.swapgrid[hidden]{display:none}
 /* "S" run in red */
@@ -126,6 +134,8 @@ table.at tr.edit td{background:var(--accent-soft)}
 .vform textarea{font-family:ui-monospace,Consolas,monospace;min-height:92px;resize:vertical}
 .vform .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .vform .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.inp.auto,.inp[readonly]{background:var(--accent-soft);cursor:default;font-weight:600}
+label.f .sub{font-size:12px;color:var(--muted);font-weight:400}
 .pwerr{color:var(--danger);font-size:13px;min-height:18px;margin-top:6px}
 .swapgrid .h{font-size:12px;color:var(--muted);font-weight:600}
 .swapgrid .vl{font-size:13px;font-weight:600;white-space:nowrap}
@@ -148,6 +158,7 @@ fieldset.off .grid{opacity:.5}
 .seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .seg button{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:500}
 .seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.seg button .dot[hidden]{display:none}
 .seg button .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-left:6px;vertical-align:middle;opacity:.8}
 
 .vt-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
@@ -253,6 +264,16 @@ table.ed td.act{white-space:nowrap;text-align:right;width:1%}
 .credit{text-align:center;font-size:13px;color:var(--muted);padding:4px 18px calc(22px + env(safe-area-inset-bottom,0px))}
 
 .offscreen{position:fixed;left:-30000px;top:0;pointer-events:none}
+/* station autocomplete */
+.ac{position:fixed;z-index:60;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(10,20,30,.18);
+  max-height:280px;overflow:auto;padding:4px;margin:0;list-style:none;font-size:14px}
+.ac[hidden]{display:none}
+.ac li{padding:7px 10px;border-radius:5px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.ac li mark{background:none;color:var(--accent);font-weight:700}
+.ac li[aria-selected="true"]{background:var(--accent-soft)}
+.ac li .own{font-size:11.5px;color:var(--muted)}
+.ac li.none{cursor:default;color:var(--muted);font-size:13px}
+@media (max-width:700px){.ac{font-size:16px}.ac li{padding:10px 12px}}
 
 .ts{display:none}
 .pv-head{gap:10px}
@@ -449,7 +470,9 @@ table.ed .mexp{display:none}
       <fieldset>
         <legend>Odprawiający</legend>
         <div class="grid">
-          <label class="f wide">Imię i nazwisko<input class="inp" data-h="odprawiajacy" list="dlOsoby"></label>
+          <label class="f wide">Imię i nazwisko – uzupełniane automatycznie
+            <input class="inp auto" data-h="odprawiajacy" readonly tabindex="-1" aria-describedby="odprHint">
+            <span class="sub" id="odprHint">Kierownik pociągu, a przy zaznaczonym „Brak kierownika” – maszynista.</span></label>
         </div>
       </fieldset>
     </div>
@@ -468,18 +491,29 @@ table.ed .mexp{display:none}
 
     <!-- TAB 3 -->
     <div class="tabpane" id="t3" role="tabpanel" hidden>
-      <p class="hint">Wiersze H1–H6 służą do wpisania wykonanych prób hamulca: stacja, rodzaj próby i kto ją wykonał (rubryki 2–6), a obok długość i masy składu w chwili próby (rubryki 7–10). Domyślnie aplikacja przepisuje aktualne sumy z zakładki „Pojazdy”.</p>
+      <p class="hint">Wiersze H1–H6 to wykonane próby hamulca. H1 odbywa się zawsze na stacji początkowej pociągu (z rubryki 1). Na dokumencie próba uproszczona ma oznaczenie „U”, a szczegółowa „S” + OT. Przy wybranej osobie wpisuje się tylko stanowisko (bez nazwiska); przy „Inny” wpisujesz ręcznie. W rubrykach 7–10 domyślnie wpisują się aktualne sumy składu z zakładki „Pojazdy”.</p>
       <div id="hList"></div>
     </div>
 
     <!-- TAB 4 -->
     <div class="tabpane" id="t4" role="tabpanel" hidden>
-      <p class="hint">Każda z rubryk 2–6 ma te same wiersze co rubryka 1. Wypełnij tylko te dane, które na danej stacji się zmieniają – puste pola zostają na podpisy i ręczne wpisy.</p>
+      <p class="hint">Rubryki 2–6 wypełniasz tylko wtedy, gdy na stacji pośredniej lub końcowej coś się zmienia (np. zmiana drużyny). W rubrykach 2–5 wybierz rodzaj zmiany (kierownik, maszynista lub oboje), a w rubryce 6 – „Zakończ dokument”.</p>
       <div class="seg" id="colSeg" role="group" aria-label="Wybór rubryki"></div>
-      <fieldset>
+      <div class="coloff" id="colOff">
+        <p><b id="colOffTitle"></b> jest nieaktywna – na dokumencie zostaje pusta.</p>
+        <button class="btn primary" type="button" id="btnColOn"></button>
+        <div class="zmiany" id="colZm" role="group" aria-label="Rodzaj zmiany na stacji">
+          <button class="btn primary" type="button" data-zm="k">Zmiana kierownika pociągu</button>
+          <button class="btn primary" type="button" data-zm="m">Zmiana maszynisty</button>
+          <button class="btn primary" type="button" data-zm="km">Zmiana kierownika pociągu i maszynisty</button>
+        </div>
+        <p class="sub" id="colOffInfo"></p>
+      </div>
+      <fieldset id="colOnBox">
         <legend><span id="colTitle"></span>
-          <button class="btn small" type="button" id="btnColCopy">Kopiuj z rubryki 1</button>
-          <button class="btn small" type="button" id="btnColClear">Wyczyść rubrykę</button></legend>
+          <button class="btn small" type="button" id="btnColPull"></button>
+          <button class="btn small" type="button" id="btnColCopy"></button>
+          <button class="btn small clear" type="button" id="btnColClear">Wyłącz rubrykę</button></legend>
         <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="colBrakKier"> Brak kierownika w tej rubryce (wykreślenie „Z”)</label>
         <div class="grid" id="colGrid"></div>
       </fieldset>
@@ -556,6 +590,8 @@ table.ed .mexp{display:none}
   </div>
 </dialog>
 
+<ul class="ac" id="acList" role="listbox" hidden></ul>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -585,13 +621,13 @@ const HEAD = [
   ['odprawiajacy','Odprawiający']
 ];
 const HEAD_KEYS = HEAD.map(h=>h[0]);
-const H_KEYS = ['stacja','proba','wykonal','auto','dl','mLad','mWl','mHam'];
+const H_KEYS = ['stacja','proba','kto','wykonal','auto','dl','mLad','mWl','mHam'];
 const STORE_KEY = 'wykaz-r7-dane-v1';
 const P1_ROWS = 18, PN_ROWS = 34;
 
 const emptyRow = () => Object.fromEntries(FIELDS.map(f => [f.k, '']));
 const emptyHead = () => Object.fromEntries(HEAD_KEYS.map(k => [k, '']));
-const emptyH = () => ({stacja:'',proba:'',wykonal:'',auto:true,dl:'',mLad:'',mWl:'',mHam:''});
+const emptyH = () => ({stacja:'',proba:'',kto:'',wykonal:'',auto:true,dl:'',mLad:'',mWl:'',mHam:''});
 const today = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 function freshState(){
   const h = emptyHead(); h.data = today();
@@ -603,7 +639,10 @@ function normalize(s){
   if(!s || typeof s !== 'object') return out;
   const fixRow = r => { const o = emptyRow(); if(r && typeof r==='object') for(const f of FIELDS) if(r[f.k]!=null) o[f.k]=String(r[f.k]); return o; };
   const fixHead = r => { const o = emptyHead(); if(r && typeof r==='object') for(const k of HEAD_KEYS) if(r[k]!=null) o[k]=String(r[k]); return o; };
-  const fixH = r => { const o = emptyH(); if(r && typeof r==='object') for(const k of H_KEYS) if(r[k]!=null) o[k] = k==='auto' ? !!r[k] : String(r[k]); return o; };
+  const fixH = r => { const o = emptyH(); if(r && typeof r==='object') for(const k of H_KEYS) if(r[k]!=null) o[k] = k==='auto' ? !!r[k] : String(r[k]);
+    if(!o.kto && o.wykonal.trim()) o.kto = 'inny';
+    if(!['masz','kier','rew','inny',''].includes(o.kto)) o.kto = 'inny';
+    const pu = o.proba.trim().toUpperCase(); if(pu==='S'||pu==='U') o.proba = pu; return o; };
   if(s.rodzajPoj!=null) out.rodzajPoj = String(s.rodzajPoj);
   if(s.rodzajDop!=null) out.rodzajDop = String(s.rodzajDop);
   if(s.kabina==='2') out.kabina = '2';
@@ -620,7 +659,9 @@ function normalize(s){
   if(s.lLink && typeof s.lLink==='object') out.lLink = {nad:!!s.lLink.nad, prz:!!s.lLink.prz};
   else if(s.rodzaj!=null) out.rodzajDop = String(s.rodzaj);
   if(s.head) out.head = fixHead(s.head);
-  if(Array.isArray(s.cols)) out.cols = Array.from({length:5},(_,i)=>{ const o = fixHead(s.cols[i]); if(s.cols[i] && s.cols[i].brakKier) o.brakKier = true; return o; });
+  if(Array.isArray(s.cols)) out.cols = Array.from({length:5},(_,i)=>{ const o = fixHead(s.cols[i]); if(s.cols[i] && s.cols[i].brakKier) o.brakKier = true;
+    if(s.cols[i] && ['k','m','km'].includes(s.cols[i].zmiana)) o.zmiana = s.cols[i].zmiana;
+    if(s.cols[i] && (s.cols[i].active || o.brakKier || headFilled(o))) o.active = true; else { o.brakKier = false; } return o; });
   if(Array.isArray(s.L)) out.L = Array.from({length:Math.min(12, Math.max(6, s.L.length))},(_,i)=>fixRow(s.L[i]));
   if(Array.isArray(s.W)) out.W = s.W.length ? s.W.map(fixRow) : [emptyRow()];
   if(Array.isArray(s.H) && s.v>=2) out.H = Array.from({length:6},(_,i)=>fixH(s.H[i]));
@@ -998,11 +1039,24 @@ $('#btnPojReset').addEventListener('click', () => {
 function askConfirm(title, msg, okLabel, danger){
   return new Promise(res => {
     const d = $('#dlgAsk'), yes = $('#askYes'), no = $('#askNo');
-    $('#askTitle').textContent = title; $('#askMsg').textContent = msg; yes.textContent = okLabel || 'OK';
+    $('#askTitle').textContent = title; $('#askMsg').textContent = msg; yes.textContent = okLabel || 'OK'; no.textContent = 'Anuluj';
     yes.style.background = danger ? 'var(--danger)' : ''; yes.style.borderColor = danger ? 'var(--danger)' : ''; yes.style.color = danger ? '#fff' : '';
     const done = v => { yes.onclick = no.onclick = d.oncancel = null; if(d.open) d.close(); res(v); };
     yes.onclick = () => done(true); no.onclick = () => done(false); d.oncancel = e => { e.preventDefault(); done(false); };
     d.showModal(); no.focus();
+  });
+}
+
+/* yes / no question: resolves true (Tak), false (Nie) or null (closed with Esc) */
+function askYesNo(title, msg){
+  return new Promise(res => {
+    const d = $('#dlgAsk'), yes = $('#askYes'), no = $('#askNo');
+    $('#askTitle').textContent = title; $('#askMsg').textContent = msg;
+    yes.textContent = 'Tak'; no.textContent = 'Nie';
+    yes.style.background = yes.style.borderColor = yes.style.color = '';
+    const done = v => { yes.onclick = no.onclick = d.oncancel = null; if(d.open) d.close(); no.textContent = 'Anuluj'; res(v); };
+    yes.onclick = () => done(true); no.onclick = () => done(false); d.oncancel = e => { e.preventDefault(); done(null); };
+    d.showModal(); yes.focus();
   });
 }
 
@@ -1139,6 +1193,14 @@ function admSave(){
 }
 
 const KIER_KEYS = ['kierownik','kJedn','kZe','kDo'];
+/* "Odprawiający" follows the crew: the conductor, or the driver when there is no conductor (per rubric 1–6) */
+function syncOdpr(){
+  const calc = (col, brak) => String((brak ? col.maszynista : col.kierownik) || '').trim();
+  state.head.odprawiajacy = calc(state.head, state.brakKier);
+  state.cols.forEach(c => { c.odprawiajacy = calc(c, !!c.brakKier); });
+  const i1 = document.querySelector('[data-h="odprawiajacy"]'); if(i1) i1.value = state.head.odprawiajacy;
+  const i2 = document.querySelector('#colGrid [data-c="odprawiajacy"]'); if(i2) i2.value = state.cols[curCol].odprawiajacy;
+}
 function syncKier(){
   $('#brakKier').checked = state.brakKier;
   $('#fsKier').classList.toggle('off', state.brakKier);
@@ -1169,28 +1231,100 @@ document.querySelectorAll('[data-copyroute]').forEach(b => b.addEventListener('c
 /* ---------------- tab 4: columns 2–6 ---------------- */
 let curCol = 0; // index into state.cols (0 => rubryka 2)
 const COL_NAMES = ['2 – stacja pośrednia','3 – stacja pośrednia','4 – stacja pośrednia','5 – stacja pośrednia','6 – stacja końcowa'];
+const TRAIN_KEYS = ['nrPociagu','data','zeStacji','doStacji'];
+function prevActive(i){
+  for(let j=i-1;j>=0;j--) if(state.cols[j].active) return {col:state.cols[j], name:'rubryki '+(j+2)};
+  return {col:state.head, name:'rubryki 1'};
+}
 function buildColSeg(){
-  $('#colSeg').innerHTML = COL_NAMES.map((n,i)=>`<button type="button" data-col="${i}" aria-pressed="${i===curCol}">Rubryka ${i+2}${headFilled(state.cols[i])?'<span class="dot" aria-label="wypełniona"></span>':''}</button>`).join('');
+  /* update the existing buttons in place – rebuilding them while a field loses focus swallowed the click on another rubric */
+  const seg = $('#colSeg');
+  if(seg.children.length !== COL_NAMES.length)
+    seg.innerHTML = COL_NAMES.map((n,i)=>`<button type="button" data-col="${i}">Rubryka ${i+2}<span class="dot" aria-label="aktywna"></span></button>`).join('');
+  [...seg.children].forEach((b,i) => {
+    b.setAttribute('aria-pressed', String(i===curCol));
+    b.querySelector('.dot').hidden = !state.cols[i].active;
+  });
 }
 function buildColGrid(){
-  $('#colTitle').textContent = 'Rubryka ' + COL_NAMES[curCol];
-  $('#colBrakKier').checked = !!state.cols[curCol].brakKier;
-  const c = state.cols[curCol];
+  const c = state.cols[curCol], pv = prevActive(curCol), nr = curCol+2;
+  $('#colOff').hidden = !!c.active; $('#colOnBox').hidden = !c.active;
+  $('#colOffTitle').textContent = 'Rubryka ' + COL_NAMES[curCol];
+  const last = curCol === COL_NAMES.length-1;
+  $('#btnColOn').textContent = 'Zakończ dokument';
+  $('#btnColOn').hidden = !last; $('#colZm').hidden = last;
+  $('#colOffInfo').textContent = last
+    ? `Rubryka 6 (stacja końcowa) zostanie uzupełniona wszystkimi danymi z ostatniej uzupełnionej rubryki (${pv.name.replace('rubryki ','nr ')}). Aplikacja zapyta, czy pociąg dojechał po północy.`
+    : `Wybierz, co zmienia się na tej stacji. Dane pociągu i niezmieniona część drużyny przepiszą się z ${pv.name}, a u nowej osoby „ze stacji” będzie stacją „do stacji” z poprzedniej rubryki.`;
+  $('#btnColPull').hidden = last; $('#btnColCopy').hidden = last;
+  $('#btnColPull').textContent = `Pobierz dane pociągu z ${pv.name}`;
+  $('#btnColCopy').textContent = `Kopiuj całą ${pv.name.replace('rubryki','rubrykę')}`;
+  $('#colTitle').innerHTML = esc('Rubryka ' + COL_NAMES[curCol]) + (c.active && ZMIANY[c.zmiana] ? ` <span class="zmtag">${esc(ZMIANY[c.zmiana])}</span>` : '');
+  $('#colBrakKier').checked = !!c.brakKier;
+  if(!c.active){ $('#colGrid').innerHTML = ''; return; }
   $('#colGrid').innerHTML = HEAD.map(([k,l])=>{
     const lab = l.charAt(0).toUpperCase()+l.slice(1);
     const ctx = /^k/.test(k)&&k!=='kierownik' ? ' (kier.)' : (/^m/.test(k)&&k!=='maszynista' ? ' (masz.)' : '');
     const typ = k==='data' ? 'type="date"' : '';
     const list = /Ze|Do|Stacji/.test(k) ? 'list="dlStacje"' : (/Jedn/.test(k)?'list="dlJedn"':'');
-    const dis = c.brakKier && KIER_KEYS.includes(k) ? 'disabled' : '';
+    const dis = c.brakKier && KIER_KEYS.includes(k) ? 'disabled' : (k==='odprawiajacy' ? 'readonly tabindex="-1" title="Uzupełniane automatycznie: kierownik, a przy braku kierownika – maszynista"' : '');
     return `<label class="f">${esc(lab+ctx)}<input class="inp" ${typ} ${list} ${dis} data-c="${k}" value="${esc(c[k])}"></label>`;
   }).join('');
 }
 $('#colSeg').addEventListener('click', e => { const b = e.target.closest('[data-col]'); if(!b) return; curCol = +b.dataset.col; buildColSeg(); buildColGrid(); });
 $('#colGrid').addEventListener('input', e => { const k = e.target.dataset.c; if(!k) return; state.cols[curCol][k] = e.target.value; changed(); });
-$('#colGrid').addEventListener('change', () => buildColSeg());
-$('#btnColCopy').addEventListener('click', () => { state.cols[curCol] = {...state.head}; if(state.brakKier) state.cols[curCol].brakKier = true; buildColGrid(); buildColSeg(); changed(); });
+function nextDay(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); if(!m) return iso;
+  const d = new Date(+m[1], +m[2]-1, +m[3]+1), p2 = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+/* change of crew at an intermediate station: copy what stays, start the new person where the previous one ended */
+const ZMIANY = {k:'zmiana kierownika', m:'zmiana maszynisty', km:'zmiana kierownika i maszynisty'};
+const K_BLOCK = ['kierownik','kJedn','kZe','kDo'], M_BLOCK = ['maszynista','mJedn','mZe','mDo'];
+document.querySelectorAll('[data-zm]').forEach(b => b.addEventListener('click', () => {
+  const zm = b.dataset.zm, pv = prevActive(curCol), src = pv.col, srcBrak = src===state.head ? state.brakKier : !!src.brakKier;
+  const c = emptyHead();
+  TRAIN_KEYS.forEach(k => { c[k] = src[k] || ''; });
+  if(zm==='m'){ K_BLOCK.forEach(k => { c[k] = src[k] || ''; }); c.brakKier = srcBrak; }
+  else c.kZe = src.kDo || src.mDo || '';
+  if(zm==='k'){ M_BLOCK.forEach(k => { c[k] = src[k] || ''; }); }
+  else c.mZe = src.mDo || src.kDo || '';
+  c.active = true; c.zmiana = zm;
+  state.cols[curCol] = c; buildColSeg(); buildColGrid(); changed();
+  const first = $(zm==='m' ? '#colGrid [data-c="maszynista"]' : '#colGrid [data-c="kierownik"]'); first && first.focus();
+  toast(`Rubryka ${curCol+2}: ${ZMIANY[zm]} – dane przepisane z ${pv.name}.`);
+}));
+$('#btnColOn').addEventListener('click', async () => {
+  if(curCol === COL_NAMES.length-1){
+    const ans = await askYesNo('Zakończ dokument', 'Czy pociąg do stacji końcowej dojechał po północy?');
+    if(ans === null) return;
+    const pv = prevActive(curCol), src = pv.col;
+    const c = {...emptyHead(), ...Object.fromEntries(HEAD_KEYS.map(k=>[k, src[k]||''])), active:true,
+      brakKier: src===state.head ? state.brakKier : !!src.brakKier};
+    if(ans) c.data = nextDay(c.data);
+    state.cols[curCol] = c; buildColSeg(); buildColGrid(); changed();
+    toast(`Rubryka 6 uzupełniona z ${pv.name}` + (ans ? `, data zmieniona na ${fmtDate(c.data)}.` : ', data bez zmian.'));
+    return;
+  }
+  const pv = prevActive(curCol), c = emptyHead();
+  TRAIN_KEYS.forEach(k => { c[k] = pv.col[k] || ''; }); c.active = true;
+  state.cols[curCol] = c; buildColSeg(); buildColGrid(); changed();
+  toast(`Rubryka ${curCol+2} aktywna – dane pociągu przepisane z ${pv.name}.`);
+});
+$('#btnColPull').addEventListener('click', () => {
+  const pv = prevActive(curCol); TRAIN_KEYS.forEach(k => { state.cols[curCol][k] = pv.col[k] || ''; });
+  buildColGrid(); changed();
+});
+$('#btnColCopy').addEventListener('click', () => {
+  const pv = prevActive(curCol);
+  state.cols[curCol] = {...emptyHead(), ...Object.fromEntries(HEAD_KEYS.map(k=>[k, pv.col[k]||''])), active:true, brakKier: pv.col===state.head ? state.brakKier : !!pv.col.brakKier};
+  buildColGrid(); buildColSeg(); changed();
+});
 $('#colBrakKier').addEventListener('change', e => { state.cols[curCol].brakKier = e.target.checked; buildColGrid(); buildColSeg(); changed(); });
-$('#btnColClear').addEventListener('click', () => { state.cols[curCol] = emptyHead(); buildColGrid(); buildColSeg(); changed(); });
+$('#btnColClear').addEventListener('click', async () => {
+  if(!await askConfirm('Wyłącz rubrykę', `Rubryka ${curCol+2} zostanie wyczyszczona i będzie pusta na dokumencie.`, 'Wyłącz', true)) return;
+  state.cols[curCol] = emptyHead(); buildColGrid(); buildColSeg(); changed();
+});
 
 /* ---------------- tab 2: vehicles ---------------- */
 function evnBtn(v){
@@ -1298,29 +1432,54 @@ function renderSummary(){
 }
 
 /* ---------------- tab 3: brake tests ---------------- */
-function hText(h){
+const PROBY = {U:'Uproszczona', S:'Szczegółowa'};
+const KTO = {masz:'Maszynista', kier:'Kierownik pociągu', rew:'Rewident taboru', inny:'Inny (wpisz ręcznie)'};
+/* only "Inny" carries a hand-written name; the other roles are printed without a name */
+const hName = h => h.kto==='inny' ? String(h.wykonal||'').trim() : '';
+function hText(h, idx){
   const p = [];
-  if(h.stacja.trim()) p.push(h.stacja.trim());
-  if(h.proba.trim()) p.push(`pr. ham. „${h.proba.trim()}”`);
-  if(h.wykonal.trim()) p.push('wyk. ' + h.wykonal.trim());
+  const st = idx===0 ? state.head.zeStacji : h.stacja;
+  if(String(st||'').trim()) p.push(String(st).trim());
+  if(h.proba==='S') p.push('pr. ham. „S” + OT');
+  else if(h.proba==='U') p.push('pr. ham. „U”');
+  else if(h.proba.trim()) p.push(`pr. ham. „${h.proba.trim()}”`);
+  if(h.kto==='masz') p.push('wyk. maszynista');
+  else if(h.kto==='kier') p.push('wyk. kierownik poc.');
+  else if(h.kto==='rew') p.push('wyk. rew. taboru');
+  else if(hName(h)) p.push('wyk. ' + hName(h));
   return p.join(' ');
 }
-const hHas = h => !!(h.stacja.trim() || h.proba.trim() || h.wykonal.trim());
-function hVals(h){
-  if(!hHas(h) && !(h.dl||h.mLad||h.mWl||h.mHam)) return null;
+/* H1 always takes place at the train's start station, so it counts as filled only once a test type or person is chosen */
+const hHas = (h, idx) => !!(h.proba.trim() || h.kto || h.wykonal.trim() || (idx>0 && h.stacja.trim()));
+function hVals(h, idx){
+  if(!hHas(h, idx) && !(!h.auto && (h.dl||h.mLad||h.mWl||h.mHam))) return null;
   const zf = x => Math.abs(x) < 1e-9 ? '-' : fmtN(x);
   if(h.auto){ const t = totals(); return t.n ? {dl:zf(t.dl), mLad:zf(t.mLad), mWl:zf(t.mWl), mHam:zf(t.mHam)} : null; }
   return {dl:h.dl, mLad:h.mLad, mWl:h.mWl, mHam:h.mHam};
 }
+function hNameField(h){
+  if(h.kto==='inny') return `<label class="f">Kto wykonał<input class="inp" data-hk="wykonal" list="dlOsoby" value="${esc(h.wykonal)}" placeholder="stanowisko i nazwisko"></label>`;
+  return '<span></span>';
+}
 function buildH(){
   $('#hList').innerHTML = state.H.map((h,i)=>`
   <div class="hcard" data-hi="${i}">
-    <h3>H${i+1} <span class="prevtxt" data-prev>${esc(hText(h))}</span>
+    <h3>H${i+1} <span class="prevtxt" data-prev>${esc(hText(h,i))}</span>
       <button class="ib del" type="button" data-hclr title="Wyczyść wiersz" aria-label="Wyczyść wiersz H${i+1}">✕</button></h3>
     <div class="grid">
-      <label class="f">Stacja<input class="inp" data-hk="stacja" list="dlStacje" value="${esc(h.stacja)}"></label>
-      <label class="f">Rodzaj próby<input class="inp" data-hk="proba" list="dlProba" value="${esc(h.proba)}" placeholder="np. S"></label>
-      <label class="f" style="grid-column:span 2">Wykonał (stanowisko, nazwisko)<input class="inp" data-hk="wykonal" list="dlOsoby" value="${esc(h.wykonal)}" placeholder="np. rew. taboru P. Kowalski"></label>
+      ${i===0
+        ? `<label class="f">Stacja (początkowa pociągu)<input class="inp auto" data-hst readonly tabindex="-1" value="${esc(state.head.zeStacji)}" title="Pierwsza próba zawsze na stacji początkowej – z rubryki 1"></label>`
+        : `<label class="f">Stacja<input class="inp" data-hk="stacja" list="dlStacje" value="${esc(h.stacja)}"></label>`}
+      <label class="f">Rodzaj próby<select class="inp" data-hk="proba">
+        <option value="">— wybierz —</option>
+        ${Object.entries(PROBY).map(([v,l])=>`<option value="${v}" ${h.proba===v?'selected':''}>${l}</option>`).join('')}
+        ${h.proba && !PROBY[h.proba] ? `<option value="${esc(h.proba)}" selected>${esc(h.proba)}</option>` : ''}
+      </select></label>
+      <label class="f">Wykonał<select class="inp" data-hk="kto">
+        <option value="">— wybierz —</option>
+        ${Object.entries(KTO).map(([v,l])=>`<option value="${v}" ${h.kto===v?'selected':''}>${l}</option>`).join('')}
+      </select></label>
+      ${hNameField(h)}
     </div>
     <div class="grid">
       <label class="chk wide" style="grid-column:1/-1"><input type="checkbox" data-hk="auto" ${h.auto?'checked':''}> Przepisz sumy składu do rubryk 7–10</label>
@@ -1329,13 +1488,23 @@ function buildH(){
     </div>
   </div>`).join('');
 }
+/* keep the auto parts of the brake-test cards current without rebuilding them (keeps focus while typing) */
+function syncH(){
+  state.H[0].stacja = state.head.zeStacji;
+  document.querySelectorAll('#hList [data-hi]').forEach(card => {
+    const i = +card.dataset.hi, h = state.H[i];
+    const st = card.querySelector('[data-hst]'); if(st) st.value = state.head.zeStacji;
+    card.querySelector('[data-prev]').textContent = hText(h, i);
+  });
+}
 $('#hList').addEventListener('input', e => {
   const card = e.target.closest('[data-hi]'); const k = e.target.dataset.hk; if(!card||!k) return;
-  const h = state.H[+card.dataset.hi];
+  const i = +card.dataset.hi, h = state.H[i];
   if(k==='auto'){ h.auto = e.target.checked;
     if(!h.auto){ const t = totals(); if(!h.dl&&!h.mLad&&!h.mWl&&!h.mHam&&t.n){ h.dl=fmtN(t.dl); h.mLad=fmtN(t.mLad); h.mWl=fmtN(t.mWl); h.mHam=fmtN(t.mHam);} }
     buildH(); }
-  else { h[k] = e.target.value; card.querySelector('[data-prev]').textContent = hText(h); }
+  else if(k==='kto'){ h.kto = e.target.value; if(h.kto!=='inny') h.wykonal = ''; buildH(); }
+  else { h[k] = e.target.value; }
   changed();
 });
 $('#hList').addEventListener('click', e => {
@@ -1363,7 +1532,7 @@ function headerBlock(){
   };
   HEAD.forEach(([kk,l]) => { k = kk;
     html += `<tr${THICK.has(k)?' class="thk"':''}><td class="lb">${esc(l)}</td>` + cell(h, state.brakKier);
-    for(let c=0;c<5;c++) html += cell(state.cols[c], !!state.cols[c].brakKier);
+    for(let c=0;c<5;c++) html += state.cols[c].active ? cell(state.cols[c], !!state.cols[c].brakKier) : '<td class="val"></td>';
     html += '</tr>';
   });
   return html + '</table>';
@@ -1397,8 +1566,8 @@ function boxesCyf(v){
 function vtRow(item){
   const lp = `<td class="lp">${esc(item.lp)}</td>`;
   if(item.h){
-    const h = item.h, vals = hVals(h) || {dl:'',mLad:'',mWl:'',mHam:''};
-    return `<tr class="${item.cls||''}">${lp}<td colspan="5" class="htx">${esc(hText(h))}</td>`+
+    const h = item.h, show = hHas(h, item.hi), vals = hVals(h, item.hi) || {dl:'',mLad:'',mWl:'',mHam:''};
+    return `<tr class="${item.cls||''}">${lp}<td colspan="5" class="htx">${show ? esc(hText(h, item.hi)) : ''}</td>`+
       `<td class="nr">${esc(vals.dl)}</td><td class="nr">${esc(vals.mLad)}</td><td class="nr">${esc(vals.mWl)}</td><td class="nr">${esc(vals.mHam)}</td>`+
       `<td></td><td></td><td></td><td class="uw">${esc(item.uw||'')}</td></tr>`;
   }
@@ -1424,7 +1593,7 @@ function buildRows(){
   for(let i=0;i<wCount;i++){
     rows.push({lp:(i+1)+'.', r: state.W[i], cls: i===0?'first-w':''});
   }
-  state.H.forEach((h,i)=>rows.push({lp:'H'+(i+1), h, cls: i===0?'first-h':''}));
+  state.H.forEach((h,i)=>rows.push({lp:'H'+(i+1), h, hi:i, cls: i===0?'first-h':''}));
   flowRemarks(rows);
   return rows;
 }
@@ -1511,15 +1680,109 @@ $('#zoomOut').addEventListener('click', () => { const i = ZOOMS.indexOf(pvZoom);
 $('#mEdit').addEventListener('click', () => document.querySelector('.panel').scrollIntoView({behavior:'smooth', block:'start'}));
 $('#mPreview').addEventListener('click', () => $('#pvHead').scrollIntoView({behavior:'smooth', block:'start'}));
 $('#mPdf').addEventListener('click', () => $('#btnPdf').click());
-if('ResizeObserver' in window) new ResizeObserver(()=>fitWrap()).observe(desk);
+/* refit only when the width really changes – reacting to height changes made the page oscillate */
+let lastDeskW = 0;
+if('ResizeObserver' in window) new ResizeObserver(ents => { const w = Math.round(ents[0].contentRect.width); if(w !== lastDeskW){ lastDeskW = w; fitWrap(); } }).observe(desk);
 else window.addEventListener('resize', fitWrap);
 
 let pvT = null;
 function changed(){
-  persist(); renderSummary(); validateSwap(); if(state.pojMode==='swap') syncSwapFields();
+  syncOdpr(); syncH(); persist(); renderSummary(); validateSwap(); if(state.pojMode==='swap') syncSwapFields();
   clearTimeout(pvT); pvT = setTimeout(renderPreview, 120);
   refreshDatalists();
 }
+/* ---------------- station autocomplete (all fields that used the dlStacje datalist) ---------------- */
+const STACJE = ["Adršpach", "Bardo Śląskie", "Bartnica", "Biały Kościół", "Bielany Wrocławskie", "Bielawa Centralna", "Bielawa Góry Sowie", "Bielawa Jezioro", "Bielawa Zachodnia", "Bieniów", "Bierkowice", "Biskupice Oławskie", "Bogaczów", "Boguszów Gorce", "Boguszów Gorce Zachód", "Boguszów-Gorce Wschód", "Bojanowo", "Bolesławice Świdnickie", "Bolesławiec", "Boreczek", "Borowa", "Borowa Oleśnicka", "Borszyn Mały", "Borszyn Wielki", "Brochocin Trzebnicki", "Brzeg", "Brzeg Dolny", "Brzeg Głogowski", "Buchałów", "Bukowina Sycowska", "Burkatów", "Bystrzyca Górna", "Bystrzyca Kłodzka", "Bystrzyca Kłodzka Przedmieście", "Bytom Odrzański", "Chełmek Wołowski", "Chocianów", "Chojnów", "Chrząstawa Mała", "Ciechanowice", "Cieszków", "Cieśle", "Czerna", "Czernica Wrocławska", "Doboszowice", "Dobrzykowice Wrocławskie", "Domaszków", "Domasław", "Duszniki-Zdrój", "Dzierżoniów Śląski", "Dąbrowa Niemodlińska", "Dąbrowa Oleśnicka", "Dębinka", "Długopole-Zdrój", "Długołęka", "Forst (Lausitz)", "Garbce", "Garki", "Goczałków", "Gorzanów", "Gorzuchów Kłodzki", "Grabik", "Grabowno Wielkie", "Granowiec", "Gryfów Śląski", "Grębocice", "Góra Śląska", "Górzyniec", "Görlitz", "Głogów", "Głogów Huta", "Głogów Krzepów", "Głogów Wróblin", "Głogówko", "Głuszyca", "Głuszyca Górna", "Harrachov", "Henryków", "Imbramowice", "Iwiny", "Iłowa Żagańska", "Jagodzin", "Jankowa Żagańska", "Janowice Wielkie", "Jawor", "Jaworzyna Śląska", "Jaśkowice-Legnickie", "Jedlina-Zdrój", "Jedlina-Zdrój Centrum", "Jelcz Miłoszyce", "Jelcz-Laskowice", "Jelenia Góra", "Jelenia Góra Cieplice", "Jelenia Góra Orle", "Jelenia Góra Przemysłowa", "Jelenia Góra Sobieszów", "Jelenia Góra Zabobrze", "Jelenia Góra Zachodnia", "Jemielna Oleśnicka", "Jerzmanki", "Jezierzany", "Jędrzychowice", "Kaczkowo", "Kamieniec Ząbkowicki", "Kamienna Góra", "Karpacz", "Kobierzyce", "Kopalina", "Koźlice", "Krosnowice Kłodzkie", "Krotoszyn", "Královec", "Księginice", "Kudowa-Zdrój", "Kulin Kłodzki", "Kunice", "Kwieciszowice", "Kąty Wrocławskie", "Kłodzko Główne", "Kłodzko Miasto", "Lasocice", "Lasów", "Legnica", "Legnica Piekary", "Legnica Strefa", "Leszno", "Leszno Górne", "Letnica", "Liberec", "Lichkov", "Lipinki Łużyckie", "Lipki", "Lubanice", "Lubawka", "Lubań Śląski", "Lubin", "Lubin Stadion", "Lądek Zdrój", "Malczyce", "Marcinowice Świdnickie", "Marciszów", "Małomice", "Małowice Wołowskie", "Meziměstí", "Mietków", "Milicz", "Mirków", "Mirsk", "Międzybórz Sycowski", "Międzylesie", "Miękinia", "Miłkowice", "Modła", "Mokronos Górny", "Mroczkowice", "Mrozów", "Mysłakowice", "Nadolice Małe", "Nadolice Wielkie", "Namysłów", "Niedoradz", "Nowa Ruda", "Nowa Ruda Przedmieście", "Nowa Ruda Zdrojowisko", "Nowa Sól", "Nowogród Bobrzański", "Nowogród Osiedle", "Nysa", "Oborniki Śląskie", "Odolanów", "Okmiany", "Oleśnica", "Oleśnica Rataje", "Opole Główne", "Opole Zachodnie", "Orzeszków", "Orłowice", "Osola", "Ostrów Wielkopolski", "Otmuchów", "Otmuchów Jezioro", "Oława", "Ołdrzychowice Kłodzkie", "Paczków", "Pasikurowice", "Pawłów Wielkopolski", "Piechowice", "Piechowice Dolne", "Pierwoszów Miłocin", "Pieńsk", "Piława Górna", "Polana Jakuszycka", "Polanica-Zdrój", "Poniatowice", "Proszówka", "Przecza", "Przedmoście Święte", "Przybyłowice", "Pszenno", "Pustków Żurawski", "Pęgów", "Ramiszów", "Raszówka", "Rawicz", "Rogoźnica", "Rogów Sobócki", "Rokitki", "Rudna Gwizdanów", "Rudna Miasto", "Ruszów", "Rybnica", "Rydzyna", "Rynarcice", "Rzeszotary", "Rębiszów", "Sadowice Wrocławskie", "Siechnice", "Siedlec Trzebnicki", "Sieniawa Żarska", "Skokowa", "Smardy", "Smardzów Wrocławski", "Smolec", "Sobótka", "Sobótka Zachodnia", "Solniki Wielkie", "Sośnie Ostrowskie", "Stanowice", "Stara Kamienica", "Starczów", "Stary Jawor", "Stary Wielisław", "Stradomia", "Stronie Śląskie", "Strzegom", "Strzelce Świdnickie", "Strzelin", "Studniska", "Suszka", "Syców", "Szczedrzykowice", "Szczepanów", "Szewce", "Szklarska Poręba Dolna", "Szklarska Poręba Górna", "Szklarska Poręba Huta", "Szklarska Poręba Średnia", "Sędzisław", "Taborowice", "Tarchały Wielkie", "Tomaszów Bolesławiecki", "Topola-Osiedle", "Trutnov", "Trzcińsko", "Trzebieszowice", "Trzebnica", "Tuplice", "Twardogóra", "Ubocze", "Unisław Śląski", "Warkocz", "Wałbrzych Centrum", "Wałbrzych Fabryczny", "Wałbrzych Główny", "Wałbrzych Miasto", "Wałbrzych Szczawienko", "Wierzbica Górna", "Wilków Namysłowski", "Wojanów", "Wołów", "Wrocław Brochów", "Wrocław Grabiszyn", "Wrocław Główny", "Wrocław Kowale", "Wrocław Kuźniki", "Wrocław Leśnica", "Wrocław Mikołajów", "Wrocław Muchobór", "Wrocław Nadodrze", "Wrocław Nowy Dwór", "Wrocław Osobowice", "Wrocław Partynice", "Wrocław Pawłowice", "Wrocław Popiele", "Wrocław Popowice", "Wrocław Pracze", "Wrocław Psie Pole", "Wrocław Różanka", "Wrocław Sołtysowice", "Wrocław Stadion", "Wrocław Strachocin", "Wrocław Swojczyce", "Wrocław Szczepin", "Wrocław Wojnów", "Wrocław Wojnów Wschodni", "Wrocław Wojszyce", "Wrocław Zachodni", "Wrocław Zakrzów", "Wrocław Świniary", "Wrocław Żerniki", "Węgliniec", "Węgry", "Zaborowice", "Zagórze Śląskie", "Zakrzów Kotowice", "Zduny", "Zebrzydowa", "Zgorzelec", "Zgorzelec Miasto", "Zielona Góra Główna", "Zielona Góra Nowy Kisielin", "Zielona Góra Stary Kisielin", "Ziębice", "Ząbkowice Śląskie", "Złotoryja", "Łomnica", "Łomnica Dolna", "Łomnica Średnia", "Łosiów", "Łososiowice", "Łubachów", "Ścinawa", "Ścinawka Średnia", "Środa Śląska", "Świdnica Miasto", "Świdnica Przedmieście", "Świebodzice", "Świeradów-Zdrój", "Świerki Dolne", "Święta Katarzyna", "Żagań", "Żary", "Żary Muzyków", "Żarów", "Żebice Wrocławskie", "Żelazno", "Żmigród", "Żórawina"];
+let userStations = [];
+const fold = t => String(t||'').toLocaleLowerCase('pl').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l');
+function stationMatches(q){
+  const fq = fold(q).trim(); if(!fq) return [];
+  const seen = new Set(), out = [];
+  const all = [...STACJE.map(n=>({n, own:false})), ...userStations.filter(n=>!STACJE.includes(n)).map(n=>({n, own:true}))];
+  for(const x of all){
+    const f = fold(x.n); if(seen.has(f)) continue;
+    let rank = -1;
+    const words = f.split(/[\s\-(]+/).filter(Boolean), toks = fq.split(/[\s\-]+/).filter(Boolean);
+    if(f.startsWith(fq)) rank = 0;
+    else if(words.some(w => w.startsWith(fq))) rank = 1;
+    /* several fragments, e.g. "wroc gl" -> Wrocław Główny, "jel zach" -> Jelenia Góra Zachodnia */
+    else if(toks.length>1 && toks.every(t => words.some(w => w.startsWith(t)))) rank = words[0].startsWith(toks[0]) ? 0 : 1;
+    else if(fq.length>=3 && f.includes(fq)) rank = 2;
+    if(rank>=0){ seen.add(f); out.push({...x, rank, f}); }
+  }
+  return out.sort((a,b)=>a.rank-b.rank || a.n.localeCompare(b.n,'pl')).slice(0,10);
+}
+const acList = $('#acList'); let acInput = null, acItems = [], acSel = -1;
+function acHighlight(name, q){
+  const toks = fold(q).trim().split(/[\s\-]+/).filter(Boolean);
+  if(toks.length>1 && !fold(name).startsWith(fold(q).trim())){
+    const f = fold(name), marks = new Array(name.length).fill(false);
+    let pos = 0; const re = /[^\s\-(]+/g; let m;
+    while((m = re.exec(f))){ const t = toks.find(t => m[0].startsWith(t)); if(t) for(let k=0;k<t.length;k++) marks[m.index+k] = true; }
+    let out = '', open = false;
+    for(let k=0;k<name.length;k++){ if(marks[k] && !open){ out += '<mark>'; open = true; } if(!marks[k] && open){ out += '</mark>'; open = false; } out += esc(name[k]); }
+    return out + (open ? '</mark>' : '');
+  }
+  const f = fold(name), fq = fold(q).trim(); let i = f.indexOf(fq);
+  const w = f.search(new RegExp('(^|[\\s\\-(])' + fq.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+  if(w>=0) i = w + (f[w]===fq[0] ? 0 : 1);
+  if(i<0 || !fq) return esc(name);
+  return esc(name.slice(0,i)) + '<mark>' + esc(name.slice(i,i+fq.length)) + '</mark>' + esc(name.slice(i+fq.length));
+}
+function acPlace(){
+  if(!acInput) return;
+  const r = acInput.getBoundingClientRect();
+  const below = window.innerHeight - r.bottom, up = below < 200 && r.top > below;
+  const w = Math.min(Math.max(r.width, 240), window.innerWidth - 16);
+  acList.style.width = w + 'px'; acList.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+  acList.style.top = up ? '' : (r.bottom + 4) + 'px';
+  acList.style.bottom = up ? (window.innerHeight - r.top + 4) + 'px' : '';
+  acList.style.maxHeight = Math.max(140, Math.min(280, (up ? r.top : below) - 16)) + 'px';
+}
+function acClose(){ acList.hidden = true; acItems = []; acSel = -1; if(acInput){ acInput.setAttribute('aria-expanded','false'); acInput.removeAttribute('aria-activedescendant'); } }
+function acRender(){
+  const q = acInput.value; acItems = stationMatches(q);
+  if(!q.trim()){ acClose(); return; }
+  if(acItems.length===1 && fold(acItems[0].n)===fold(q).trim()){ acClose(); return; }
+  acList.innerHTML = acItems.length
+    ? acItems.map((x,i)=>`<li role="option" id="ac${i}" data-i="${i}" aria-selected="${i===acSel}"><span>${acHighlight(x.n,q)}</span>${x.own?'<span class="own">wpisana wcześniej</span>':''}</li>`).join('')
+    : `<li class="none">Brak stacji na liście – zostanie wpisana ręcznie</li>`;
+  acList.hidden = false; acInput.setAttribute('aria-expanded','true'); acPlace();
+}
+function acPick(i){
+  const x = acItems[i]; if(!x || !acInput) return;
+  acInput.value = x.n;
+  acInput.dispatchEvent(new Event('input', {bubbles:true}));
+  acInput.dispatchEvent(new Event('change', {bubbles:true}));
+  acClose();
+}
+/* turn every station field into an autocomplete field (also ones rendered later) */
+function acUpgrade(root){
+  (root.querySelectorAll ? root.querySelectorAll('input[list="dlStacje"]') : []).forEach(inp => {
+    inp.removeAttribute('list'); inp.dataset.stacja = '1'; inp.autocomplete = 'off';
+    inp.setAttribute('role','combobox'); inp.setAttribute('aria-autocomplete','list'); inp.setAttribute('aria-controls','acList'); inp.setAttribute('aria-expanded','false');
+  });
+}
+acUpgrade(document);
+new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if(n.nodeType===1){ if(n.matches && n.matches('input[list="dlStacje"]')) acUpgrade(n.parentNode); else acUpgrade(n); } })))
+  .observe(document.body, {childList:true, subtree:true});
+document.addEventListener('input', e => { const t = e.target; if(!(t instanceof HTMLInputElement) || !t.dataset.stacja || !e.isTrusted) return; acInput = t; acSel = -1; acRender(); });
+document.addEventListener('focusin', e => { const t = e.target; if(t instanceof HTMLInputElement && t.dataset.stacja){ acInput = t; } else if(!acList.contains(t)) acClose(); });
+document.addEventListener('focusout', e => { if(e.target===acInput) setTimeout(()=>{ if(document.activeElement!==acInput) acClose(); }, 120); });
+document.addEventListener('keydown', e => {
+  if(!acInput || e.target!==acInput || acList.hidden || !acItems.length) { if(!acList.hidden && ['Escape','Tab','Enter'].includes(e.key)) acClose(); return; }
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); acSel = (acSel + (e.key==='ArrowDown'?1:-1) + acItems.length) % acItems.length;
+    acList.querySelectorAll('li').forEach((li,i)=>li.setAttribute('aria-selected', String(i===acSel))); acInput.setAttribute('aria-activedescendant','ac'+acSel);
+    const li = acList.querySelector(`[data-i="${acSel}"]`); li && li.scrollIntoView({block:'nearest'}); }
+  else if(e.key==='Enter' && acSel>=0){ e.preventDefault(); acPick(acSel); }
+  else if(e.key==='Tab' && acSel>=0){ acPick(acSel); }
+  else if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); acClose(); }
+}, true);
+acList.addEventListener('mousedown', e => e.preventDefault());
+acList.addEventListener('click', e => { const li = e.target.closest('[data-i]'); if(li) acPick(+li.dataset.i); });
+window.addEventListener('resize', () => { if(!acList.hidden) acPlace(); });
+document.addEventListener('scroll', () => { if(!acList.hidden) acPlace(); }, true);
+
 let dlT = null;
 function refreshDatalists(){
   clearTimeout(dlT);
@@ -1531,7 +1794,7 @@ function refreshDatalists(){
     const people = clean([...pick(['kierownik','maszynista','odprawiajacy']), ...state.H.map(h=>h.wykonal)]);
     const units = clean(pick(['kJedn','mJedn']));
     const opt = set => [...set].sort((a,b)=>a.localeCompare(b,'pl')).map(v=>`<option value="${esc(v)}">`).join('');
-    $('#dlStacje').innerHTML = opt(stations); $('#dlOsoby').innerHTML = opt(people); $('#dlJedn').innerHTML = opt(units);
+    userStations = [...stations]; $('#dlOsoby').innerHTML = opt(people); $('#dlJedn').innerHTML = opt(units);
   }, 400);
 }
 
